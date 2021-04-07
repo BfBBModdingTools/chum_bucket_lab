@@ -1,7 +1,7 @@
 use druid::{
     im::vector,
     im::Vector,
-    widget::{Flex, Label, List},
+    widget::{Button, Flex, Label, List, Scroll},
 };
 use druid::{AppLauncher, Color, Data, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
 
@@ -47,20 +47,30 @@ pub fn main() {
 
 fn ui_builder() -> impl Widget<AppState> {
     // build base panels
-    let modlist_panel =
-        List::new(|| Label::new(|item: &Mod, _env: &_| item.name.clone()).padding(LABEL_SPACING))
-            .lens(AppState::modlist)
-            .expand()
-            .border(Color::WHITE, 1.0)
-            .background(BG_COLOR);
+    let modlist_panel = Scroll::new(List::new(|| {
+        Label::new(|item: &Mod, _env: &_| item.name.clone()).padding(LABEL_SPACING)
+    }))
+    .vertical()
+    .border(Color::WHITE, 1.0)
+    .expand()
+    .background(BG_COLOR)
+    .lens(AppState::modlist);
+
     let modinfo_panel = Label::new(LocalizedString::new("Information"))
         .center()
         .border(Color::WHITE, 1.0)
         .background(BG_COLOR);
-    let patch_button = Label::new(LocalizedString::new("Patch XBE"))
-        .center()
-        .border(Color::WHITE, 1.0)
-        .background(BG_COLOR);
+
+    // Patch button
+    let patch_button = Button::new(LocalizedString::new("Patch XBE"))
+        .on_click(|_ctx, data: &mut Vector<Mod>, _env| {
+            // Temporarily add a new mod to the list for UI testing
+            data.push_back(Mod {
+                name: "Test Mod".to_string(),
+            });
+        })
+        .expand_width()
+        .lens(AppState::modlist);
 
     // Arrange panels
     Flex::row()
