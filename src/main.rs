@@ -1,7 +1,7 @@
 use druid::{
     im::vector,
     im::Vector,
-    widget::{Button, Checkbox, Flex, Label, LineBreaking, List, Scroll},
+    widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll},
 };
 use druid::{AppLauncher, Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
 
@@ -20,7 +20,8 @@ impl AppState {
     }
 }
 
-#[derive(Data, Clone, Lens)]
+// TOOD: Consider not needing PartialEq
+#[derive(Data, Clone, PartialEq, Lens)]
 struct Mod {
     enabled: bool,
     name: String,
@@ -71,17 +72,81 @@ pub fn main() {
         .expect("launch failed");
 }
 
+impl ListIter<(AppState, Mod)> for AppState {
+    fn for_each(&self, mut cb: impl FnMut(&(AppState, Mod), usize)) {
+        for (i, item) in self.modlist.iter().enumerate() {
+            cb(
+                &(
+                    AppState {
+                        modlist: self.modlist.clone(),
+                        selected_mod: self.selected_mod,
+                    },
+                    item.to_owned(),
+                ),
+                i,
+            )
+        }
+    }
+
+    // TODO: Learn how shit works and make this not look like a dumpster fire
+    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppState, Mod), usize)) {
+        let mut new_data = Vec::new();
+
+        let mut stateclone = AppState {
+            modlist: self.modlist.clone(),
+            selected_mod: self.selected_mod,
+        };
+
+        for (i, item) in self.modlist.iter_mut().enumerate() {
+            let mut d = (stateclone.clone(), item.clone());
+            cb(&mut d, i);
+
+            if !stateclone.selected_mod.same(&d.0.selected_mod) {
+                stateclone.selected_mod = d.0.selected_mod;
+            }
+
+            if !d.1.same(item) {
+                new_data.push((d.1, i));
+            }
+        }
+
+        self.selected_mod = stateclone.selected_mod;
+        for (m, i) in new_data.iter() {
+            self.modlist.get_mut(*i).unwrap().enabled = m.enabled;
+        }
+    }
+
+    fn data_len(&self) -> usize {
+        self.modlist.data_len()
+    }
+}
+
+struct EnabledLens;
+
+impl Lens<(AppState, Mod), bool> for EnabledLens {
+    fn with<R, F: FnOnce(&bool) -> R>(&self, data: &(AppState, Mod), f: F) -> R {
+        f(&data.1.enabled)
+    }
+
+    fn with_mut<R, F: FnOnce(&mut bool) -> R>(&self, data: &mut (AppState, Mod), f: F) -> R {
+        f(&mut data.1.enabled)
+    }
+}
+
 fn ui_builder() -> impl Widget<AppState> {
-    // build base panels
-    let modlist_panel = Scroll::new(
-        List::new(|| {
-            Flex::row()
-                .with_child(Checkbox::new("").lens(Mod::enabled))
-                .with_child(Label::new(|data: &Mod, _env: &Env| data.name.clone()))
-                .padding(LABEL_SPACING)
-        })
-        .lens(AppState::modlist),
-    )
+    // build mod panel
+    let modlist_panel = Scroll::new(List::new(|| {
+        Flex::row()
+            .with_child(Checkbox::new("").lens(EnabledLens))
+            .with_child(
+                Label::new(|(_, item): &(AppState, Mod), _env: &Env| item.name.clone()).on_click(
+                    |_, (list, item): &mut (AppState, Mod), _| {
+                        list.selected_mod = list.modlist.index_of(item);
+                    },
+                ),
+            )
+            .padding(LABEL_SPACING)
+    }))
     .vertical()
     .border(Color::WHITE, 1.0)
     .expand()
@@ -103,16 +168,7 @@ fn ui_builder() -> impl Widget<AppState> {
     .background(BG_COLOR);
 
     // Patch button
-    let patch_button = Button::new(LocalizedString::new("Patch XBE"))
-        .on_click(|_ctx, data: &mut AppState, _env| {
-            // Temporarily cycle through mod list for info panel
-            if let Some(index) = data.selected_mod {
-                data.selected_mod = Some((index + 1) % data.modlist.len());
-            } else {
-                data.selected_mod = Some(0);
-            }
-        })
-        .expand_width();
+    let patch_button = Button::new(LocalizedString::new("Patch XBE")).expand_width();
 
     // Arrange panels
     Flex::row()
