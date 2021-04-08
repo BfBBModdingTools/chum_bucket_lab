@@ -75,42 +75,28 @@ pub fn main() {
 impl ListIter<(AppState, Mod)> for AppState {
     fn for_each(&self, mut cb: impl FnMut(&(AppState, Mod), usize)) {
         for (i, item) in self.modlist.iter().enumerate() {
-            cb(
-                &(
-                    AppState {
-                        modlist: self.modlist.clone(),
-                        selected_mod: self.selected_mod,
-                    },
-                    item.to_owned(),
-                ),
-                i,
-            )
+            cb(&(self.clone(), item.to_owned()), i)
         }
     }
 
-    // TODO: Learn how shit works and make this not look like a dumpster fire
     fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppState, Mod), usize)) {
         let mut new_data = Vec::new();
-
-        let mut stateclone = AppState {
-            modlist: self.modlist.clone(),
-            selected_mod: self.selected_mod,
-        };
+        let mut self_clone = self.clone();
 
         for (i, item) in self.modlist.iter_mut().enumerate() {
-            let mut d = (stateclone.clone(), item.clone());
-            cb(&mut d, i);
+            let mut data = (self_clone.clone(), item.clone());
+            cb(&mut data, i);
 
-            if !stateclone.selected_mod.same(&d.0.selected_mod) {
-                stateclone.selected_mod = d.0.selected_mod;
+            if !data.0.selected_mod.same(&self_clone.selected_mod) {
+                self_clone = data.0;
             }
 
-            if !d.1.same(item) {
-                new_data.push((d.1, i));
+            if !data.1.same(item) {
+                new_data.push((data.1, i));
             }
         }
 
-        self.selected_mod = stateclone.selected_mod;
+        self.clone_from(&self_clone);
         for (m, i) in new_data.iter() {
             self.modlist.get_mut(*i).unwrap().enabled = m.enabled;
         }
