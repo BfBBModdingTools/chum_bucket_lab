@@ -1,18 +1,28 @@
 use druid::{
     im::vector,
     im::Vector,
-    widget::{Button, Flex, Label, List, Scroll},
+    widget::{Button, Checkbox, Flex, Label, List, Scroll},
 };
-use druid::{AppLauncher, Color, Data, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
+use druid::{AppLauncher, Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
 
-#[derive(Clone, Default, Data, Lens)]
+#[derive(Clone, Data, Lens)]
 struct AppState {
     modlist: Vector<Mod>,
 }
 
-#[derive(Default, Data, Clone)]
+#[derive(Data, Clone, Lens)]
 struct Mod {
+    enabled: bool,
     name: String,
+}
+
+impl Mod {
+    fn new(name: impl Into<String>) -> Mod {
+        Mod {
+            enabled: false,
+            name: name.into(),
+        }
+    }
 }
 
 const PANEL_SPACING: f64 = 10.0;
@@ -24,18 +34,10 @@ pub fn main() {
         .title(LocalizedString::new("bfbb_modloader").with_placeholder("BfBB Modloader"));
 
     let modlist = vector![
-        Mod {
-            name: "No Autosave".to_string()
-        },
-        Mod {
-            name: "Auto CB".to_string()
-        },
-        Mod {
-            name: "Mod 3".to_string()
-        },
-        Mod {
-            name: "Mod 4".to_string()
-        },
+        Mod::new("No Autosave"),
+        Mod::new("Auto CB"),
+        Mod::new("Mod 3"),
+        Mod::new("Mod 4"),
     ];
 
     let data = AppState { modlist: modlist };
@@ -47,14 +49,19 @@ pub fn main() {
 
 fn ui_builder() -> impl Widget<AppState> {
     // build base panels
-    let modlist_panel = Scroll::new(List::new(|| {
-        Label::new(|item: &Mod, _env: &_| item.name.clone()).padding(LABEL_SPACING)
-    }))
+    let modlist_panel = Scroll::new(
+        List::new(|| {
+            Flex::row()
+                .with_child(Checkbox::new("").lens(Mod::enabled))
+                .with_child(Label::new(|data: &Mod, _env: &Env| data.name.clone()))
+                .padding(LABEL_SPACING)
+        })
+        .lens(AppState::modlist),
+    )
     .vertical()
     .border(Color::WHITE, 1.0)
     .expand()
-    .background(BG_COLOR)
-    .lens(AppState::modlist);
+    .background(BG_COLOR);
 
     let modinfo_panel = Label::new(LocalizedString::new("Information"))
         .center()
@@ -65,9 +72,7 @@ fn ui_builder() -> impl Widget<AppState> {
     let patch_button = Button::new(LocalizedString::new("Patch XBE"))
         .on_click(|_ctx, data: &mut Vector<Mod>, _env| {
             // Temporarily add a new mod to the list for UI testing
-            data.push_back(Mod {
-                name: "Test Mod".to_string(),
-            });
+            data.push_back(Mod::new("Test Mod"));
         })
         .expand_width()
         .lens(AppState::modlist);
