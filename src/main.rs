@@ -1,9 +1,10 @@
 use druid::{
-    im::vector,
     im::Vector,
     widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll},
 };
 use druid::{AppLauncher, Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt, WindowDesc};
+use serde::{Deserialize, Serialize};
+use std::fs;
 
 #[derive(Clone, Data, Lens)]
 struct AppState {
@@ -21,33 +22,12 @@ impl AppState {
 }
 
 // TOOD: Consider not needing PartialEq
-#[derive(Data, Clone, PartialEq, Lens)]
+#[derive(Data, Clone, PartialEq, Lens, Deserialize, Serialize)]
 struct Mod {
     enabled: bool,
     name: String,
     author: String,
     description: String,
-}
-
-impl Mod {
-    fn new(name: impl Into<String>) -> Mod {
-        Mod {
-            enabled: false,
-            name: name.into(),
-            author: "".to_owned(),
-            description: "".to_owned(),
-        }
-    }
-
-    fn set_author(mut self, author: impl Into<String>) -> Self {
-        self.author = author.into();
-        self
-    }
-
-    fn set_description(mut self, description: impl Into<String>) -> Self {
-        self.description = description.into();
-        self
-    }
 }
 
 const PANEL_SPACING: f64 = 10.0;
@@ -58,14 +38,10 @@ pub fn main() {
     let main_window = WindowDesc::new(ui_builder)
         .title(LocalizedString::new("bfbb_modloader").with_placeholder("BfBB Modloader"));
 
-    let modlist = vector![
-        Mod::new("No Autosave").set_author("TheCoolSquare").set_description("Prevents Autosave functionality from ever being enabled. blah blah blahblah blah blahblah blah blah\n\nblah"),
-        Mod::new("Auto CB").set_author("fusecv & daft7"),
-        Mod::new("Mod 3"),
-        Mod::new("Mod 4"),
-    ];
+    // FIXME: More robust file I/O, any file error will currently result in a panic
+    let modlist: Vec<Mod> = serde_json::from_reader(fs::File::open("mods.json").unwrap()).unwrap();
+    let data = AppState::new(Vector::from(modlist));
 
-    let data = AppState::new(modlist);
     AppLauncher::with_window(main_window)
         .use_simple_logger()
         .launch(data)
