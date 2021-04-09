@@ -1,9 +1,7 @@
-use std::io::Write;
-
 use druid::widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll};
 use druid::{Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt};
 
-use crate::data::{AppState, Mod};
+use crate::data::{AppState, Mod, Patch, Rom};
 
 const PANEL_SPACING: f64 = 10.0;
 const LABEL_SPACING: f64 = 5.0;
@@ -93,24 +91,26 @@ pub fn ui_builder() -> impl Widget<AppState> {
     // Patch button
     let patch_button = Button::new(LocalizedString::new("Patch XBE"))
         .on_click(|_, data: &mut AppState, _| {
-            for m in data.modlist.iter().filter(|i| i.enabled) {
-                // Download Patch
-                match m.download() {
-                    Err(_) => println!("Patch download failed"),
-                    Ok(patch) => match std::fs::OpenOptions::new()
-                        .write(true)
-                        .truncate(true)
-                        .create(true)
-                        .open("patchtest.ips")
-                    {
-                        Err(_) => println!("Failed to save patch"),
-                        Ok(mut file) => {
-                            file.write(&patch).unwrap();
+            if let Ok(mut rom) = Rom::new() {
+                for m in data.modlist.iter().filter(|i| i.enabled) {
+                    // Download Patch
+                    match m.download() {
+                        Err(_) => println!("Patch download failed"),
+                        Ok(patch_bytes) => {
+                            let mut patch = Patch::new(patch_bytes);
+                            match patch.apply_to(&mut rom) {
+                                Err(_) => println!("Failed to patch rom"),
+                                Ok(_) => (),
+                            }
                         }
-                    },
+                    }
                 }
-                // Apply Patch
-                // After loop: save xbe
+
+                // Write out modified rom
+                match rom.export() {
+                    Err(_) => println!("Failed to export patched rom!"),
+                    Ok(_) => (),
+                }
             }
         })
         .expand_width();

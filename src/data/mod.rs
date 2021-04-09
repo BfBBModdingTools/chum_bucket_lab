@@ -1,4 +1,5 @@
-use std::io::Bytes;
+mod ips;
+use ips::Ips;
 
 use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
@@ -34,5 +35,39 @@ impl Mod {
             .bytes()?
             .to_vec();
         Ok(response)
+    }
+}
+
+pub struct Rom {
+    pub bytes: Vec<u8>,
+}
+
+impl Rom {
+    pub fn new() -> Result<Self, std::io::Error> {
+        // TODO: verify file integrity
+        let bytes = std::fs::read("baserom/default.xbe")?;
+        Ok(Rom { bytes })
+    }
+
+    pub fn export(&self) -> Result<(), std::io::Error> {
+        std::fs::write("output/default.xbe", &self.bytes)
+    }
+}
+
+pub struct Patch {
+    ips_file: Ips,
+}
+
+impl Patch {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Patch {
+            ips_file: Ips::new(bytes),
+        }
+    }
+
+    // TODO: return Result of some sort
+    pub fn apply_to(&mut self, rom: &mut Rom) -> Result<(), std::io::Error> {
+        self.ips_file.apply_to(&mut rom.bytes)?;
+        Ok(())
     }
 }
