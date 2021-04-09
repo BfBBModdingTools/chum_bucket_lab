@@ -1,3 +1,5 @@
+use std::io::Bytes;
+
 use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
 #[derive(Clone, Data, Lens)]
@@ -24,4 +26,13 @@ pub struct Mod {
     pub description: String,
     pub website_url: String,
     pub download_url: String,
+}
+
+impl Mod {
+    pub fn download(&self) -> Result<Vec<u8>, reqwest::Error> {
+        let response = reqwest::blocking::get(&self.download_url)?
+            .bytes()?
+            .to_vec();
+        Ok(response)
+    }
 }

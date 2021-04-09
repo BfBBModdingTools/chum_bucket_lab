@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use druid::widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll};
 use druid::{Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt};
 
@@ -89,7 +91,29 @@ pub fn ui_builder() -> impl Widget<AppState> {
     .background(BG_COLOR);
 
     // Patch button
-    let patch_button = Button::new(LocalizedString::new("Patch XBE")).expand_width();
+    let patch_button = Button::new(LocalizedString::new("Patch XBE"))
+        .on_click(|_, data: &mut AppState, _| {
+            for m in data.modlist.iter().filter(|i| i.enabled) {
+                // Download Patch
+                match m.download() {
+                    Err(_) => println!("Patch download failed"),
+                    Ok(patch) => match std::fs::OpenOptions::new()
+                        .write(true)
+                        .truncate(true)
+                        .create(true)
+                        .open("patchtest.ips")
+                    {
+                        Err(_) => println!("Failed to save patch"),
+                        Ok(mut file) => {
+                            file.write(&patch).unwrap();
+                        }
+                    },
+                }
+                // Apply Patch
+                // After loop: save xbe
+            }
+        })
+        .expand_width();
 
     // Arrange panels
     Flex::row()
