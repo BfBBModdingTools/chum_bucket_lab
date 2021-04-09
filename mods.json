@@ -13,22 +13,30 @@
         "author": "fusecv & daft7",
         "description": "",
         "website_url": "",
-        "download_url": ""
+        "download_url": "https://cdn.discordapp.com/attachments/66238856818589696/830024948969766922/default_autocbv1_0r1.ips"
     },
     {
         "enabled": false,
-        "name": "Mod 3",
+        "name": "Many Sizes",
         "author": "",
-        "description": "",
+        "description": "IPS Test 1\nMultiple patches of differing lengths, NO RLE",
         "website_url": "",
-        "download_url": ""
+        "download_url": "https://cdn.discordapp.com/attachments/830036843893882891/830036868636082186/Many_Sizes.ips"
     },
     {
         "enabled": false,
-        "name": "Mod 4",
+        "name": "Simple RLE",
         "author": "",
-        "description": "",
+        "description": "IPS Test 2\nOne RLE encoded patch",
         "website_url": "",
-        "download_url": ""
+        "download_url": "https://cdn.discordapp.com/attachments/830036843893882891/830036879336013874/Simple_RLE.ips"
+    },
+    {
+        "enabled": false,
+        "name": "Sizes 2",
+        "author": "",
+        "description": "ISP Test 3\nDeliberately leaves a large gap between end of baserom and the patch data.",
+        "website_url": "",
+        "download_url": "https://cdn.discordapp.com/attachments/830036843893882891/830038445815758848/sizes_2.ips"
     }
 ]
