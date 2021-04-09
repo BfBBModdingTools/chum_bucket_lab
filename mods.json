@@ -3,24 +3,32 @@
         "enabled": false,
         "name": "No Autosave",
         "author": "TheCoolSquare",
-        "description": "Prevents Autosave functionality from ever being enabled. blah blah blahblah blah blahblah blah blah\n\nblah"
+        "description": "Prevents Autosave functionality from ever being enabled. blah blah blahblah blah blahblah blah blah\n\nblah",
+        "website_url": "https://github.com/SquareMan/bfbbnoautosave",
+        "download_url": "https://github.com/SquareMan/bfbbnoautosave/raw/master/nosavegame.ips"
     },
     {
         "enabled": false,
         "name": "Auto CB",
         "author": "fusecv & daft7",
-        "description": ""
+        "description": "",
+        "website_url": "",
+        "download_url": ""
     },
     {
         "enabled": false,
         "name": "Mod 3",
         "author": "",
-        "description": ""
+        "description": "",
+        "website_url": "",
+        "download_url": ""
     },
     {
         "enabled": false,
         "name": "Mod 4",
         "author": "",
-        "description": ""
+        "description": "",
+        "website_url": "",
+        "download_url": ""
     }
 ]

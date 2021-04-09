@@ -22,4 +22,6 @@ pub struct Mod {
     pub name: String,
     pub author: String,
     pub description: String,
+    pub website_url: String,
+    pub download_url: String,
 }
