@@ -11,29 +11,43 @@ pub fn main() {
     let main_window = WindowDesc::new(ui::ui_builder)
         .title(LocalizedString::new("bfbb_modloader").with_placeholder("BfBB Modloader"));
 
-    if let Ok(response) = reqwest::blocking::get(
+    const MODS_FILE: &str = "mods.json";
+    match reqwest::blocking::get(
         "https://raw.githubusercontent.com/SquareMan/bfbb_modloader/master/mods.json",
     ) {
-        if let Ok(modlist_json) = response.text() {
-            if let Ok(mut file) = fs::OpenOptions::new()
+        Err(_) => println!("Failed to retrieve modslist from internet"), // TODO: Interent connectivity error
+        Ok(response) => match response.text() {
+            Err(_) => println!("Failed to convert HTTP response to text"), // TODO: Not sure when this happens
+            Ok(modlist_json) => match fs::OpenOptions::new()
                 .write(true)
                 .truncate(true)
-                .open("mods.json")
+                .open(MODS_FILE)
             {
-                match file.write_all(modlist_json.as_bytes()) {
+                Err(_) => println!("Failed to write updated file to disk"), // TODO: File access error
+                Ok(mut file) => match file.write_all(modlist_json.as_bytes()) {
                     Ok(_) => (),
                     Err(_) => (),
+                },
+            },
+        },
+    }
+
+    // TODO: Consider if saving the modlist locally is even necessary
+    // Note: Keeping a local copy enables the app to still function even
+    // if we fail to download latest version even though the user has a valid
+    // internet connection
+    match fs::File::open(MODS_FILE) {
+        Err(_) => println! {"Failed to open file"}, // TODO: Failed to open file error
+        Ok(file) => {
+            match serde_json::from_reader::<_, Vec<Mod>>(file) {
+                Err(_) => println!("File corrupted"), // TODO: Failed to deserialize file error
+                Ok(modlist) => {
+                    AppLauncher::with_window(main_window)
+                        .use_simple_logger()
+                        .launch(AppState::new(Vector::from(modlist)))
+                        .expect("launch failed");
                 }
             }
         }
     }
-
-    // FIXME: More robust file I/O, any file error will currently result in a panic
-    let modlist: Vec<Mod> = serde_json::from_reader(fs::File::open("mods.json").unwrap()).unwrap();
-    let data = AppState::new(Vector::from(modlist));
-
-    AppLauncher::with_window(main_window)
-        .use_simple_logger()
-        .launch(data)
-        .expect("launch failed");
 }
