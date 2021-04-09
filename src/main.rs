@@ -7,21 +7,20 @@ use data::{AppState, Mod};
 use std::fs;
 use std::io::Write;
 
+const WINDOW_TITLE: &str = "bfbb_modloader";
+
 pub fn main() {
     let main_window = WindowDesc::new(ui::ui_builder)
-        .title(LocalizedString::new("bfbb_modloader").with_placeholder("BfBB Modloader"));
+        .title(LocalizedString::new(WINDOW_TITLE).with_placeholder("BfBB Modloader"));
 
-    const MODS_FILE: &str = "mods.json";
-    match reqwest::blocking::get(
-        "https://raw.githubusercontent.com/SquareMan/bfbb_modloader/master/mods.json",
-    ) {
+    match reqwest::blocking::get(data::URL_MODLIST) {
         Err(_) => println!("Failed to retrieve modslist from internet"), // TODO: Interent connectivity error
         Ok(response) => match response.text() {
             Err(_) => println!("Failed to convert HTTP response to text"), // TODO: Not sure when this happens
             Ok(modlist_json) => match fs::OpenOptions::new()
                 .write(true)
                 .truncate(true)
-                .open(MODS_FILE)
+                .open(data::PATH_MODLIST)
             {
                 Err(_) => println!("Failed to write updated file to disk"), // TODO: File access error
                 Ok(mut file) => match file.write_all(modlist_json.as_bytes()) {
@@ -36,7 +35,7 @@ pub fn main() {
     // Note: Keeping a local copy enables the app to still function even
     // if we fail to download latest version even though the user has a valid
     // internet connection
-    match fs::File::open(MODS_FILE) {
+    match fs::File::open(data::PATH_MODLIST) {
         Err(_) => println! {"Failed to open file"}, // TODO: Failed to open file error
         Ok(file) => {
             match serde_json::from_reader::<_, Vec<Mod>>(file) {

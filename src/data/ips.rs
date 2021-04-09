@@ -73,7 +73,7 @@ impl Ips {
         }
 
         fn push_at(v: &mut Vec<u8>, i: usize, b: u8) {
-            for j in v.len()..i {
+            for _j in v.len()..i {
                 v.push(0u8);
             }
             v.push(b);

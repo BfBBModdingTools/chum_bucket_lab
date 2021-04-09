@@ -3,6 +3,14 @@ use ips::Ips;
 
 use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
+
+pub const PATH_MODLIST: &str = "mods.json";
+pub const URL_MODLIST: &str =
+    "https://raw.githubusercontent.com/SquareMan/bfbb_modloader/master/mods.json";
+
+const PATH_ROM: &str = "baserom/default.xbe";
+const PATH_OUTPUT: &str = "output/default.xbe";
+
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
     pub modlist: Vector<Mod>,
@@ -45,12 +53,12 @@ pub struct Rom {
 impl Rom {
     pub fn new() -> Result<Self, std::io::Error> {
         // TODO: verify file integrity
-        let bytes = std::fs::read("baserom/default.xbe")?;
+        let bytes = std::fs::read(PATH_ROM)?;
         Ok(Rom { bytes })
     }
 
     pub fn export(&self) -> Result<(), std::io::Error> {
-        std::fs::write("output/default.xbe", &self.bytes)
+        std::fs::write(PATH_OUTPUT, &self.bytes)
     }
 }
 
