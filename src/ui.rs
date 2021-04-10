@@ -7,7 +7,7 @@ use druid::{
     WidgetExt,
 };
 
-use crate::data;
+use crate::data::{self, PATH_ROM};
 use crate::data::{AppData, Mod, Patch, Rom};
 
 const PANEL_SPACING: f64 = 10.0;
@@ -155,31 +155,32 @@ fn apply_enabled_mods(data: &mut AppData) {
         return;
     }
 
-    if let Ok(mut rom) = Rom::new() {
-        for m in enabled_mods {
-            // Download Patch
-            match m.download() {
-                Err(_) => {
-                    set_response(data, format!("Failed to download {}", m.name));
-                    return;
-                }
-                Ok(patch_bytes) => {
-                    let mut patch = Patch::new(patch_bytes);
-                    match patch.apply_to(&mut rom) {
-                        Err(_) => {
-                            set_response(data, format!("Failed to apply {}", m.name));
-                            return;
+    match Rom::new() {
+        Err(e) => set_response(data, e.to_string()),
+        Ok(mut rom) => {
+            for m in enabled_mods {
+                // Download Patch
+                match m.download() {
+                    Err(_) => {
+                        set_response(data, format!("Failed to download {}", m.name));
+                    }
+                    Ok(patch_bytes) => {
+                        let mut patch = Patch::new(patch_bytes);
+                        match patch.apply_to(&mut rom) {
+                            Err(_) => {
+                                set_response(data, format!("Failed to apply {}", m.name));
+                            }
+                            Ok(_) => (),
                         }
-                        Ok(_) => (),
                     }
                 }
             }
-        }
 
-        // Write out modified rom
-        match rom.export() {
-            Err(_) => set_response(data, "Failed to export patched rom!"),
-            Ok(_) => set_response(data, "Successfully patched ROM."),
+            // Write out modified rom
+            match rom.export() {
+                Err(_) => set_response(data, "Failed to export patched rom!"),
+                Ok(_) => set_response(data, "Successfully patched ROM."),
+            }
         }
     }
 }
@@ -196,16 +197,24 @@ impl AppDelegate<AppData> for Delegate {
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
-            match std::fs::create_dir_all("baserom") {
-                Err(_) => set_response(data, "Failed to make baserom directory"),
-                Ok(_) => match std::fs::copy(file_info.path(), data::PATH_ROM) {
-                    Err(_) => set_response(data, "Failed to copy rom"),
-                    Ok(_) => {
-                        apply_enabled_mods(data);
-                        return Handled::Yes;
-                    }
-                },
+            if let Err(_) = std::fs::create_dir_all("baserom") {
+                set_response(data, "Failed to make baserom directory");
+                return Handled::Yes;
             }
+            if let Err(_) = std::fs::copy(file_info.path(), data::PATH_ROM) {
+                set_response(data, "Failed to copy rom");
+                return Handled::Yes;
+            }
+
+            if let Ok(bytes) = std::fs::read(data::PATH_ROM) {
+                if Rom::verify_hash(&bytes) != true {
+                    set_response(data, "The imported file is not correct.");
+                    let _ = std::fs::remove_file(PATH_ROM);
+                } else {
+                    apply_enabled_mods(data);
+                }
+            }
+            return Handled::Yes;
         }
 
         Handled::No

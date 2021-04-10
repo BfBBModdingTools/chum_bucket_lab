@@ -3,6 +3,7 @@ use ips::Ips;
 
 use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
+use sha1::{Digest, Sha1};
 
 pub const PATH_MODLIST: &str = "mods.json";
 pub const URL_MODLIST: &str =
@@ -54,10 +55,28 @@ pub struct Rom {
 }
 
 impl Rom {
+    const XBE_SHA1: &'static [u8] = &[
+        0xa9, 0xac, 0x85, 0x5c, 0x4e, 0xe8, 0xb4, 0x1b, 0x66, 0x1c, 0x35, 0x78, 0xc9, 0x59, 0xc0,
+        0x24, 0xf1, 0x06, 0x8c, 0x47,
+    ];
+
     pub fn new() -> Result<Self, std::io::Error> {
-        // TODO: verify file integrity
         let bytes = std::fs::read(PATH_ROM)?;
+        if !Rom::verify_hash(&bytes) {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "Hash Does Not Match",
+            ));
+        }
+
         Ok(Rom { bytes })
+    }
+
+    pub fn verify_hash(bytes: &Vec<u8>) -> bool {
+        let mut hasher = Sha1::new();
+        hasher.update(&bytes);
+        let hash = hasher.finalize();
+        *Rom::XBE_SHA1 == hash[..]
     }
 
     pub fn export(&self) -> Result<(), std::io::Error> {
