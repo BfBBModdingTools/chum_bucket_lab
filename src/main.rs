@@ -67,6 +67,7 @@ fn update_modlist() {
         Ok(response) => match response.text() {
             Err(_) => println!("Failed to convert HTTP response to text"), // TODO: Not sure when this happens
             Ok(modlist_json) => match fs::OpenOptions::new()
+                .create(true)
                 .write(true)
                 .truncate(true)
                 .open(data::PATH_MODLIST)
