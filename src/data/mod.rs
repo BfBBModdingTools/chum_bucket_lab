@@ -9,7 +9,7 @@ pub const URL_MODLIST: &str =
     "https://raw.githubusercontent.com/SquareMan/bfbb_modloader/master/mods.json";
 
 const PATH_ROM: &str = "baserom/default.xbe";
-const PATH_OUTPUT: &str = "output/default.xbe";
+const PATH_OUTPUT: &str = "output";
 
 #[derive(Clone, Data, Lens)]
 pub struct AppState {
@@ -58,7 +58,8 @@ impl Rom {
     }
 
     pub fn export(&self) -> Result<(), std::io::Error> {
-        std::fs::write(PATH_OUTPUT, &self.bytes)
+        std::fs::create_dir_all(PATH_OUTPUT)?;
+        std::fs::write(PATH_OUTPUT.to_owned() + "/default.xbe", &self.bytes)
     }
 }
 
