@@ -117,7 +117,10 @@ pub fn ui_builder() -> impl Widget<AppState> {
 fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
     if !std::path::Path::new(data::PATH_ROM).is_file() {
         let types = vec![FileSpec::new("Xbox Executable", &["xbe"])];
-        let options = FileDialogOptions::new().allowed_types(types);
+        let options = FileDialogOptions::new()
+            .allowed_types(types)
+            .button_text("Import")
+            .title("Import Clean ROM");
 
         ctx.submit_command(Command::new(
             druid::commands::SHOW_OPEN_PANEL,
