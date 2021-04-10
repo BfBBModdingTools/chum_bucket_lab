@@ -76,6 +76,11 @@ pub fn ui_builder() -> impl Widget<AppState> {
             .padding(LABEL_SPACING)
     }))
     .vertical()
+    .on_click(|_, data: &mut AppState, _| {
+        // TODO: This is called when a label is clicked,
+        // but luckily that occurs after this.
+        data.selected_mod = None;
+    })
     .border(Color::WHITE, 1.0)
     .expand()
     .background(BG_COLOR);
