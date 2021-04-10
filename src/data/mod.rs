@@ -12,14 +12,14 @@ pub const PATH_ROM: &str = "baserom/default.xbe";
 const PATH_OUTPUT: &str = "output";
 
 #[derive(Clone, Data, Lens)]
-pub struct AppState {
+pub struct AppData {
     pub modlist: Vector<Mod>,
     pub selected_mod: Option<usize>,
 }
 
-impl AppState {
-    pub fn new(modlist: Vector<Mod>) -> AppState {
-        AppState {
+impl AppData {
+    pub fn new(modlist: Vector<Mod>) -> AppData {
+        AppData {
             modlist,
             selected_mod: None,
         }

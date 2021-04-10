@@ -8,20 +8,20 @@ use druid::{
 };
 
 use crate::data;
-use crate::data::{AppState, Mod, Patch, Rom};
+use crate::data::{AppData, Mod, Patch, Rom};
 
 const PANEL_SPACING: f64 = 10.0;
 const LABEL_SPACING: f64 = 5.0;
 const BG_COLOR: Color = Color::grey8(0xa0);
 
-impl ListIter<(AppState, Mod)> for AppState {
-    fn for_each(&self, mut cb: impl FnMut(&(AppState, Mod), usize)) {
+impl ListIter<(AppData, Mod)> for AppData {
+    fn for_each(&self, mut cb: impl FnMut(&(AppData, Mod), usize)) {
         for (i, item) in self.modlist.iter().enumerate() {
             cb(&(self.clone(), item.to_owned()), i)
         }
     }
 
-    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppState, Mod), usize)) {
+    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppData, Mod), usize)) {
         let mut new_data = Vec::new();
         let mut self_clone = self.clone();
 
@@ -51,24 +51,24 @@ impl ListIter<(AppState, Mod)> for AppState {
 
 struct EnabledLens;
 
-impl Lens<(AppState, Mod), bool> for EnabledLens {
-    fn with<R, F: FnOnce(&bool) -> R>(&self, data: &(AppState, Mod), f: F) -> R {
+impl Lens<(AppData, Mod), bool> for EnabledLens {
+    fn with<R, F: FnOnce(&bool) -> R>(&self, data: &(AppData, Mod), f: F) -> R {
         f(&data.1.enabled)
     }
 
-    fn with_mut<R, F: FnOnce(&mut bool) -> R>(&self, data: &mut (AppState, Mod), f: F) -> R {
+    fn with_mut<R, F: FnOnce(&mut bool) -> R>(&self, data: &mut (AppData, Mod), f: F) -> R {
         f(&mut data.1.enabled)
     }
 }
 
-pub fn ui_builder() -> impl Widget<AppState> {
+pub fn ui_builder() -> impl Widget<AppData> {
     // build mod panel
     let modlist_panel = Scroll::new(List::new(|| {
         Flex::row()
             .with_child(Checkbox::new("").lens(EnabledLens))
             .with_child(
-                Label::new(|(_, item): &(AppState, Mod), _env: &Env| item.name.clone()).on_click(
-                    |_, (list, item): &mut (AppState, Mod), _| {
+                Label::new(|(_, item): &(AppData, Mod), _env: &Env| item.name.clone()).on_click(
+                    |_, (list, item): &mut (AppData, Mod), _| {
                         list.selected_mod = list.modlist.index_of(item);
                     },
                 ),
@@ -76,7 +76,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
             .padding(LABEL_SPACING)
     }))
     .vertical()
-    .on_click(|_, data: &mut AppState, _| {
+    .on_click(|_, data: &mut AppData, _| {
         // TODO: This is called when a label is clicked,
         // but luckily that occurs after this.
         data.selected_mod = None;
@@ -86,7 +86,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
     .background(BG_COLOR);
 
     // build information panel for selected mod
-    let modinfo_panel = Label::new(|data: &AppState, _env: &Env| {
+    let modinfo_panel = Label::new(|data: &AppData, _env: &Env| {
         if let Some(index) = data.selected_mod {
             if let Some(m) = data.modlist.get(index) {
                 return format! {"Name: {}\nAuthor: {}\n\n{}", m.name, m.author, m.description};
@@ -119,7 +119,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
         .padding(PANEL_SPACING)
 }
 
-fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
+fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppData, _: &Env) {
     if !std::path::Path::new(data::PATH_ROM).is_file() {
         let types = vec![FileSpec::new("Xbox Executable", &["xbe"])];
         let options = FileDialogOptions::new()
@@ -138,7 +138,7 @@ fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
     apply_enabled_mods(data);
 }
 
-fn apply_enabled_mods(data: &mut AppState) {
+fn apply_enabled_mods(data: &mut AppData) {
     let enabled_mods = data
         .modlist
         .iter()
@@ -175,13 +175,13 @@ fn apply_enabled_mods(data: &mut AppState) {
 
 pub struct Delegate;
 
-impl AppDelegate<AppState> for Delegate {
+impl AppDelegate<AppData> for Delegate {
     fn command(
         &mut self,
         _ctx: &mut DelegateCtx,
         _target: Target,
         cmd: &Command,
-        data: &mut AppState,
+        data: &mut AppData,
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {

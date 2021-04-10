@@ -3,7 +3,7 @@ pub mod ui;
 
 use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
 
-use data::{AppState, Mod};
+use data::{AppData, Mod};
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
 
@@ -57,7 +57,7 @@ pub fn main() {
     AppLauncher::with_window(main_window)
         .delegate(ui::Delegate)
         .use_simple_logger()
-        .launch(AppState::new(Vector::from(modlist)))
+        .launch(AppData::new(Vector::from(modlist)))
         .expect("launch failed");
 }
 
