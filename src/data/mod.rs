@@ -8,7 +8,7 @@ pub const PATH_MODLIST: &str = "mods.json";
 pub const URL_MODLIST: &str =
     "https://raw.githubusercontent.com/SquareMan/bfbb_modloader/master/mods.json";
 
-const PATH_ROM: &str = "baserom/default.xbe";
+pub const PATH_ROM: &str = "baserom/default.xbe";
 const PATH_OUTPUT: &str = "output";
 
 #[derive(Clone, Data, Lens)]

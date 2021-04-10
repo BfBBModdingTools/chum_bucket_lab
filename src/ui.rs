@@ -1,6 +1,13 @@
-use druid::widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll};
-use druid::{Color, Data, Env, Lens, LocalizedString, Widget, WidgetExt};
+use druid::{
+    widget::{Button, Checkbox, Flex, Label, LineBreaking, List, ListIter, Scroll},
+    AppDelegate, DelegateCtx, EventCtx, Handled,
+};
+use druid::{
+    Color, Command, Data, Env, FileDialogOptions, FileSpec, Lens, LocalizedString, Target, Widget,
+    WidgetExt,
+};
 
+use crate::data;
 use crate::data::{AppState, Mod, Patch, Rom};
 
 const PANEL_SPACING: f64 = 10.0;
@@ -90,29 +97,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
 
     // Patch button
     let patch_button = Button::new(LocalizedString::new("Patch XBE"))
-        .on_click(|_, data: &mut AppState, _| {
-            if let Ok(mut rom) = Rom::new() {
-                for m in data.modlist.iter().filter(|i| i.enabled) {
-                    // Download Patch
-                    match m.download() {
-                        Err(_) => println!("Patch download failed"),
-                        Ok(patch_bytes) => {
-                            let mut patch = Patch::new(patch_bytes);
-                            match patch.apply_to(&mut rom) {
-                                Err(_) => println!("Failed to patch rom"),
-                                Ok(_) => (),
-                            }
-                        }
-                    }
-                }
-
-                // Write out modified rom
-                match rom.export() {
-                    Err(_) => println!("Failed to export patched rom!"),
-                    Ok(_) => (),
-                }
-            }
-        })
+        .on_click(patch_click)
         .expand_width();
 
     // Arrange panels
@@ -127,4 +112,76 @@ pub fn ui_builder() -> impl Widget<AppState> {
             2.0,
         )
         .padding(PANEL_SPACING)
+}
+
+fn patch_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
+    if !std::path::Path::new(data::PATH_ROM).is_file() {
+        let types = vec![FileSpec::new("Xbox Executable", &["xbe"])];
+        let options = FileDialogOptions::new().allowed_types(types);
+
+        ctx.submit_command(Command::new(
+            druid::commands::SHOW_OPEN_PANEL,
+            options,
+            Target::Auto,
+        ));
+        return;
+    }
+
+    let enabled_mods = data
+        .modlist
+        .iter()
+        .filter(|i| i.enabled)
+        .collect::<Vec<&Mod>>();
+
+    if enabled_mods.is_empty() {
+        println!("No mods selected");
+        return;
+    }
+
+    if let Ok(mut rom) = Rom::new() {
+        for m in enabled_mods {
+            // Download Patch
+            match m.download() {
+                Err(_) => println!("Patch download failed"),
+                Ok(patch_bytes) => {
+                    let mut patch = Patch::new(patch_bytes);
+                    match patch.apply_to(&mut rom) {
+                        Err(_) => println!("Failed to patch rom"),
+                        Ok(_) => (),
+                    }
+                }
+            }
+        }
+
+        // Write out modified rom
+        match rom.export() {
+            Err(_) => println!("Failed to export patched rom!"),
+            Ok(_) => (),
+        }
+    }
+}
+
+pub struct Delegate;
+
+impl AppDelegate<AppState> for Delegate {
+    fn command(
+        &mut self,
+        _ctx: &mut DelegateCtx,
+        _target: Target,
+        cmd: &Command,
+        _data: &mut AppState,
+        _env: &Env,
+    ) -> Handled {
+        if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
+            match std::fs::create_dir_all("baserom") {
+                Err(_) => println!("Failed to make baserom directory"),
+                Ok(_) => match std::fs::copy(file_info.path(), data::PATH_ROM) {
+                    Err(_) => println!("Failed to copy rom"),
+                    Ok(_) => return Handled::Yes,
+                },
+            }
+        }
+
+        Handled::No
+    }
 }

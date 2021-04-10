@@ -55,6 +55,7 @@ pub fn main() {
     };
 
     AppLauncher::with_window(main_window)
+        .delegate(ui::Delegate)
         .use_simple_logger()
         .launch(AppState::new(Vector::from(modlist)))
         .expect("launch failed");
