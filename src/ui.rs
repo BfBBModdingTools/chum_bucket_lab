@@ -97,7 +97,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
 
     // Patch button
     let patch_button = Button::new(LocalizedString::new("Patch XBE"))
-        .on_click(patch_click)
+        .on_click(patch_button_on_click)
         .expand_width();
 
     // Arrange panels
@@ -114,7 +114,7 @@ pub fn ui_builder() -> impl Widget<AppState> {
         .padding(PANEL_SPACING)
 }
 
-fn patch_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
+fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
     if !std::path::Path::new(data::PATH_ROM).is_file() {
         let types = vec![FileSpec::new("Xbox Executable", &["xbe"])];
         let options = FileDialogOptions::new().allowed_types(types);
@@ -127,6 +127,10 @@ fn patch_click(ctx: &mut EventCtx, data: &mut AppState, _: &Env) {
         return;
     }
 
+    apply_enabled_mods(data);
+}
+
+fn apply_enabled_mods(data: &mut AppState) {
     let enabled_mods = data
         .modlist
         .iter()
@@ -169,7 +173,7 @@ impl AppDelegate<AppState> for Delegate {
         _ctx: &mut DelegateCtx,
         _target: Target,
         cmd: &Command,
-        _data: &mut AppState,
+        data: &mut AppState,
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
@@ -177,7 +181,10 @@ impl AppDelegate<AppState> for Delegate {
                 Err(_) => println!("Failed to make baserom directory"),
                 Ok(_) => match std::fs::copy(file_info.path(), data::PATH_ROM) {
                     Err(_) => println!("Failed to copy rom"),
-                    Ok(_) => return Handled::Yes,
+                    Ok(_) => {
+                        apply_enabled_mods(data);
+                        return Handled::Yes;
+                    }
                 },
             }
         }
