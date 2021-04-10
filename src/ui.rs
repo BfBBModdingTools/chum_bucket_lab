@@ -173,7 +173,7 @@ fn apply_enabled_mods(data: &mut AppData) {
         // Write out modified rom
         match rom.export() {
             Err(_) => set_response(data, "Failed to export patched rom!"),
-            Ok(_) => (),
+            Ok(_) => set_response(data, "Successfully patched ROM."),
         }
     }
 }
