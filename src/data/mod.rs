@@ -15,6 +15,7 @@ const PATH_OUTPUT: &str = "output";
 pub struct AppData {
     pub modlist: Vector<Mod>,
     pub selected_mod: Option<usize>,
+    pub response: String,
 }
 
 impl AppData {
@@ -22,6 +23,7 @@ impl AppData {
         AppData {
             modlist,
             selected_mod: None,
+            response: String::with_capacity(256),
         }
     }
 }
@@ -38,6 +40,7 @@ pub struct Mod {
 }
 
 impl Mod {
+    // TODO: This returns failure status codes (Like 404)
     pub fn download(&self) -> Result<Vec<u8>, reqwest::Error> {
         let response = reqwest::blocking::get(&self.download_url)?
             .bytes()?

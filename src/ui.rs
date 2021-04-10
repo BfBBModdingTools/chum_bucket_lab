@@ -92,7 +92,7 @@ pub fn ui_builder() -> impl Widget<AppData> {
                 return format! {"Name: {}\nAuthor: {}\n\n{}", m.name, m.author, m.description};
             }
         }
-        "".to_string()
+        data.response.to_owned()
     })
     .with_line_break_mode(LineBreaking::WordWrap)
     .expand()
@@ -117,6 +117,11 @@ pub fn ui_builder() -> impl Widget<AppData> {
             2.0,
         )
         .padding(PANEL_SPACING)
+}
+
+fn set_response(data: &mut AppData, response: impl Into<String>) {
+    data.selected_mod = None;
+    data.response = response.into();
 }
 
 fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppData, _: &Env) {
@@ -146,7 +151,7 @@ fn apply_enabled_mods(data: &mut AppData) {
         .collect::<Vec<&Mod>>();
 
     if enabled_mods.is_empty() {
-        println!("No mods selected");
+        set_response(data, "No mods selected");
         return;
     }
 
@@ -154,11 +159,11 @@ fn apply_enabled_mods(data: &mut AppData) {
         for m in enabled_mods {
             // Download Patch
             match m.download() {
-                Err(_) => println!("Patch download failed"),
+                Err(_) => println!("Failed to download {}", m.name),
                 Ok(patch_bytes) => {
                     let mut patch = Patch::new(patch_bytes);
                     match patch.apply_to(&mut rom) {
-                        Err(_) => println!("Failed to patch rom"),
+                        Err(_) => println!("Failed to apply {}", m.name),
                         Ok(_) => (),
                     }
                 }
@@ -167,7 +172,7 @@ fn apply_enabled_mods(data: &mut AppData) {
 
         // Write out modified rom
         match rom.export() {
-            Err(_) => println!("Failed to export patched rom!"),
+            Err(_) => set_response(data, "Failed to export patched rom!"),
             Ok(_) => (),
         }
     }
@@ -186,9 +191,9 @@ impl AppDelegate<AppData> for Delegate {
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
             match std::fs::create_dir_all("baserom") {
-                Err(_) => println!("Failed to make baserom directory"),
+                Err(_) => set_response(data, "Failed to make baserom directory"),
                 Ok(_) => match std::fs::copy(file_info.path(), data::PATH_ROM) {
-                    Err(_) => println!("Failed to copy rom"),
+                    Err(_) => set_response(data, "Failed to copy rom"),
                     Ok(_) => {
                         apply_enabled_mods(data);
                         return Handled::Yes;
