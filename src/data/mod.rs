@@ -22,8 +22,8 @@ pub struct AppData {
 impl AppData {
     pub fn new(modlist: Vector<Mod>) -> AppData {
         AppData {
+            selected_mod: if modlist.is_empty() { None } else { Some(0) },
             modlist,
-            selected_mod: None,
             response: String::with_capacity(256),
         }
     }
