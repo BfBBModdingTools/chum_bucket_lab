@@ -120,8 +120,11 @@ pub fn ui_builder() -> impl Widget<AppData> {
 }
 
 fn set_response(data: &mut AppData, response: impl Into<String>) {
+    let response = response.into();
+    println!("RESPONSE: {}", response);
+
     data.selected_mod = None;
-    data.response = response.into();
+    data.response = response;
 }
 
 fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppData, _: &Env) {
@@ -144,11 +147,8 @@ fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppData, _: &Env) {
 }
 
 fn apply_enabled_mods(data: &mut AppData) {
-    let enabled_mods = data
-        .modlist
-        .iter()
-        .filter(|i| i.enabled)
-        .collect::<Vec<&Mod>>();
+    let modlist = data.modlist.clone();
+    let enabled_mods = modlist.iter().filter(|i| i.enabled).collect::<Vec<&Mod>>();
 
     if enabled_mods.is_empty() {
         set_response(data, "No mods selected");
@@ -159,11 +159,17 @@ fn apply_enabled_mods(data: &mut AppData) {
         for m in enabled_mods {
             // Download Patch
             match m.download() {
-                Err(_) => println!("Failed to download {}", m.name),
+                Err(_) => {
+                    set_response(data, format!("Failed to download {}", m.name));
+                    return;
+                }
                 Ok(patch_bytes) => {
                     let mut patch = Patch::new(patch_bytes);
                     match patch.apply_to(&mut rom) {
-                        Err(_) => println!("Failed to apply {}", m.name),
+                        Err(_) => {
+                            set_response(data, format!("Failed to apply {}", m.name));
+                            return;
+                        }
                         Ok(_) => (),
                     }
                 }
