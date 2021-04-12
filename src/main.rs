@@ -1,4 +1,5 @@
 pub mod data;
+pub mod linker;
 pub mod ui;
 
 use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
@@ -34,6 +35,10 @@ impl Config {
 }
 
 pub fn main() {
+    //TEMPORARY
+    let xbe = linker::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
+    let _ = linker::add_padding_bytes(0xC00, &xbe);
+
     // Get config from command line args
     let args: Vec<String> = env::args().collect();
     let config = Config::new(&args);
