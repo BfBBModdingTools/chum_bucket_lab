@@ -33,6 +33,37 @@ pub struct XBE {
 }
 
 impl XBE {
+    pub fn get_last_virtual_address(&self) -> u32 {
+        match self.section_headers.last() {
+            None => 0,
+            Some(h) => h.virtual_address,
+        }
+    }
+
+    pub fn get_last_raw_address(&self) -> u32 {
+        // sort headers by raw address
+        // TODO: This currently makes some assumptions that may or may not be true.
+        // it doesn't actually ensure that the raw_address field of the section header is
+        // where the section is actually placed. Instead it places the sections order from
+        // lowest raw address to highest and pads them to the next 0x1000 bytes.
+        // This approach works for BfBB but may not for other xbes
+        let mut sorted_headers: Vec<&SectionHeader> = self.section_headers.iter().collect();
+        sorted_headers.sort_by(|a, b| {
+            if a.raw_address > b.raw_address {
+                std::cmp::Ordering::Greater
+            } else if a.raw_address == b.raw_address {
+                std::cmp::Ordering::Equal
+            } else {
+                std::cmp::Ordering::Less
+            }
+        });
+
+        match sorted_headers.last() {
+            None => 0,
+            Some(h) => h.raw_address,
+        }
+    }
+
     /// Serialize this XBE object to a valid .xbe executable
     ///
     /// Note: this currently results in an xbe file with less ending padding
@@ -59,13 +90,14 @@ impl XBE {
         );
         img_hdr_v.append(&mut sec_hdrs);
 
-        pad_to_exact(
-            &mut img_hdr_v,
-            (self.section_headers[0].section_name_address - self.image_header.base_address)
-                as usize,
-        );
+        // pad_to_exact(
+        //     &mut img_hdr_v,
+        //     (self.section_headers[0].section_name_address - self.image_header.base_address)
+        //         as usize,
+        // );
         img_hdr_v.append(&mut sec_names);
 
+        // library versions array appears to be 4-byte-aligned
         pad_to_nearest(&mut img_hdr_v, 4);
         img_hdr_v.append(&mut library_versions);
 
@@ -111,6 +143,10 @@ impl XBE {
         for hdr in self.section_headers.iter() {
             v.append(&mut hdr.serialize()?);
         }
+
+        // write head/tail reference bytes
+        v.append(&mut vec![0u8; self.section_headers.len() * 2 + 2]);
+
         Ok(v)
     }
 
@@ -754,117 +790,66 @@ pub fn add_padding_bytes(num_bytes: u32, xbe: &XBE) -> Result<()> {
     Ok(())
 }
 
-pub fn add_test_section(xbe: &XBE) -> Result<()> {
-    // const size: u32 = 0x10;
-    // const section: &[u8] = b"0123456789ABCDEF";
+pub fn add_test_section(xbe: &mut XBE) -> Result<()> {
+    let size = 0x10;
+    let data = b"0123456789ABCDEF";
 
-    // std::fs::copy("baserom/default.xbe", "output/default.xbe")?;
-    // let mut f = OpenOptions::new()
-    //     .read(true)
-    //     .write(true)
-    //     .open("output/default.xbe")?;
+    // Update image header
+    xbe.image_header.size_of_headers += 0x40; //TODO: This needs to be calculated correctly
+    xbe.image_header.size_of_image += size;
+    xbe.image_header.number_of_sections += 1;
+    xbe.image_header.debug_pathname_address += 0x40;
+    xbe.image_header.debug_filename_address += 0x40;
+    xbe.image_header.debug_unicode_filename_address += 0x40;
+    xbe.image_header.library_versions_address += 0x40;
+    xbe.image_header.kernel_library_version_address += 0x40;
+    xbe.image_header.xapi_library_version_address += 0x40;
 
-    // let mut header_buf = Cursor::new(vec![0u8; 0x1000]);
-    // f.read(&mut header_buf.get_mut()[0..0x1c0])?;
+    // Update existing sections
+    for s in xbe.section_headers.iter_mut() {
+        s.section_name_address += 0x38 + 2;
+        s.head_shared_page_reference_count_address += 0x38;
+        s.tail_shared_page_reference_count_address += 0x38;
+    }
 
-    // // Update image size
-    // header_buf.set_position(0x108);
-    // header_buf.write_u32::<LE>(xbe.image_header.size_of_headers + 0x38)?;
-    // header_buf.write_u32::<LE>(xbe.image_header.size_of_image + size)?;
+    let (virtual_address, raw_address, section_name_address, hsprca, tsprca) =
+        match xbe.section_headers.last() {
+            None => panic!("Section headers vec is empty!"),
+            Some(h) => {
+                let end = xbe.get_last_raw_address();
+                let last_name = xbe
+                    .section_names
+                    .last()
+                    .expect("Section names vec is empty!");
 
-    // // Update section count
-    // header_buf.set_position(0x11C);
-    // header_buf.write_u32::<LE>(xbe.image_header.number_of_sections + 1)?;
+                (
+                    h.virtual_address + h.virtual_size,
+                    end + (0x1000 - end % 0x1000),
+                    h.section_name_address + last_name.len() as u32 + 1,
+                    h.tail_shared_page_reference_count_address,
+                    h.tail_shared_page_reference_count_address + 2,
+                )
+            }
+        };
 
-    // // Update debug path addresses
-    // header_buf.set_position(0x14C);
-    // header_buf.write_u32::<LE>(xbe.image_header.debug_pathname_address + 0x30)?;
-    // header_buf.write_u32::<LE>(xbe.image_header.debug_filename_address + 0x30)?;
-    // header_buf.write_u32::<LE>(xbe.image_header.debug_unicode_filename_address + 0x30)?;
+    let sec_hdr = SectionHeader {
+        section_flags: 0x2,
+        virtual_address,
+        virtual_size: size,
+        raw_address,
+        raw_size: size,
+        section_name_address: section_name_address,
+        section_name_reference_count: 0,
+        head_shared_page_reference_count_address: hsprca,
+        tail_shared_page_reference_count_address: tsprca,
+        section_digest: [0u8; 0x14],
+    };
 
-    // // Update library versions address
-    // header_buf.set_position(0x164);
-    // header_buf.write_u32::<LE>(xbe.image_header.library_versions_address + 0x30)?;
-
-    // // Update logo bitmap address
-    // header_buf.set_position(0x170);
-    // header_buf.write_u32::<LE>(xbe.image_header.logo_bitmap_address + 0x30)?;
-
-    ////////////
-
-    // // Update image size
-    // f.seek(SeekFrom::Current(0x108))?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.size_of_headers + 0x38)?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.size_of_image + size)?;
-
-    // // Update section count
-    // f.seek(SeekFrom::Current(0xC))?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.number_of_sections + 1)?;
-
-    // // Update debug path addresses
-    // f.seek(SeekFrom::Current(0x2C))?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.debug_pathname_address + 0x30)?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.debug_filename_address + 0x30)?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.debug_unicode_filename_address + 0x30)?;
-
-    // // Update library versions address
-    // f.seek(SeekFrom::Current(0xC))?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.library_versions_address + 0x30)?;
-
-    // // Update logo bitmap address
-    // f.seek(SeekFrom::Current(0x8))?;
-    // f.write_u32::<LittleEndian>(xbe.image_header.logo_bitmap_address + 0x30)?;
-
-    // // Update section addresses
-    // for i in 0..xbe.image_header.number_of_sections {
-    //     f.seek(SeekFrom::Start(
-    //         (xbe.image_header.section_headers_address - xbe.image_header.base_address
-    //             + 0x30
-    //             + (i * 0x38)
-    //             + 0xC)
-    //             .into(),
-    //     ))?;
-    //     f.write_u32::<LittleEndian>(xbe.section_headers[i as usize].raw_address + 0x30)?;
-    //     f.seek(SeekFrom::Current(4))?;
-    //     f.write_u32::<LittleEndian>(xbe.section_headers[i as usize].section_name_address + 0x30)?;
-    // }
-    // let last_section = &xbe.section_headers[xbe.image_header.number_of_sections as usize - 1];
-
-    // // Find end of header names
-    // let mut b = vec![0u8];
-    // f.seek(SeekFrom::Start(last_section.section_name_address as u64))?;
-    // let mut len = 0;
-    // loop {
-    //     f.read(&mut b)?;
-    //     len += 1;
-    //     if b[0] == b'\0' {
-    //         break;
-    //     }
-    // }
-
-    // // Add section header
-    // f.seek(SeekFrom::Start(
-    //     (xbe.image_header.section_headers_address - xbe.image_header.base_address) as u64
-    //         + (xbe.image_header.number_of_sections * 0x38) as u64,
-    // ))?;
-
-    // f.write_u32::<LittleEndian>(2)?;
-
-    // let virtual_address = last_section.virtual_address + last_section.virtual_size;
-    // f.write_u32::<LittleEndian>(virtual_address)?;
-    // f.write_u32::<LittleEndian>(size)?;
-
-    // let raw_address = last_section.raw_address + last_section.raw_size;
-    // f.write_u32::<LittleEndian>(raw_address)?;
-    // f.write_u32::<LittleEndian>(size)?;
-
-    // f.write_u32::<LittleEndian>(last_section.section_name_address + len)?;
-    // f.write_u32::<LittleEndian>(0)?;
-    // f.write_u32::<LittleEndian>(last_section.tail_shared_page_reference_count_address)?;
-    // f.write_u32::<LittleEndian>(last_section.tail_shared_page_reference_count_address + 2)?;
-
-    // let section_digest = [0u8; 0x14];
-    // f.write(&section_digest)?;
+    xbe.section_headers.push(sec_hdr);
+    xbe.section_names.push(".TEST".to_owned());
+    xbe.sections.push(Section {
+        bytes: data.to_vec(),
+    });
 
     Ok(())
 }

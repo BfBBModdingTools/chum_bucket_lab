@@ -36,8 +36,8 @@ impl Config {
 
 pub fn main() {
     //TEMPORARY
-    let xbe = linker::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
-    let _ = linker::add_test_section(&xbe);
+    let mut xbe = linker::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
+    let _ = linker::add_test_section(&mut xbe);
     let mut output = std::fs::OpenOptions::new()
         .create(true)
         .write(true)
