@@ -38,7 +38,13 @@ pub fn main() {
     //TEMPORARY
     let xbe = linker::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
     let _ = linker::add_test_section(&xbe);
-    println!("{:#X?}", xbe);
+    let mut output = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .open("output/default.xbe")
+        .unwrap();
+    let _ = output.write(&xbe.serialize().unwrap());
 
     // Get config from command line args
     let args: Vec<String> = env::args().collect();

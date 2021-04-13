@@ -1,5 +1,6 @@
 use std::{
     fs::{File, OpenOptions},
+    io,
     io::{Read, Result, Seek, SeekFrom, Write},
 };
 
@@ -28,16 +29,23 @@ pub struct XBE {
     pub debug_filename: String,
     pub debug_unicode_filename: Vec<u16>,
     pub logo_bitmap: LogoBitmap,
+    pub sections: Vec<Section>,
 }
 
 impl XBE {
-    pub fn serialize_headers(&self) -> Result<Vec<u8>> {
+    /// Serialize this XBE object to a valid .xbe executable
+    ///
+    /// Note: this currently results in an xbe file with less ending padding
+    /// when tested with SpongeBob SquarePants: Battle for Bikini Bottom,
+    /// but the outputted xbe works regardless.
+    pub fn serialize(&self) -> Result<Vec<u8>> {
         let mut img_hdr_v = self.image_header.serialize()?;
         let mut ctf_v = self.certificate.serialize()?;
         let mut sec_hdrs = self.serialize_section_headers()?;
         let mut sec_names = self.serialize_section_names()?;
         let mut library_versions = self.serialize_library_versions()?;
         let mut bitmap = self.logo_bitmap.serialize()?;
+        let mut sections = self.serialize_sections()?;
 
         pad_to_exact(
             &mut &mut img_hdr_v,
@@ -72,16 +80,12 @@ impl XBE {
             img_hdr_v.write_u16::<LE>(*x)?;
         }
 
+        // debug filename is part of this string, just starting at a later offset
         pad_to_exact(
             &mut img_hdr_v,
             (self.image_header.debug_pathname_address - self.image_header.base_address) as usize,
         );
         img_hdr_v.write(self.debug_pathname.as_bytes())?;
-        // pad_to_exact(
-        //     &mut img_hdr_v,
-        //     (self.image_header.debug_filename_address - self.image_header.base_address) as usize,
-        // );
-        // img_hdr_v.write(self.debug_filename.as_bytes())?;
 
         // Write bitmap
         pad_to_exact(
@@ -91,6 +95,12 @@ impl XBE {
         img_hdr_v.append(&mut bitmap);
 
         // Pad header
+        pad_to_nearest(&mut img_hdr_v, 0x1000);
+
+        // Add sections
+        img_hdr_v.append(&mut sections);
+
+        // End padding
         pad_to_nearest(&mut img_hdr_v, 0x1000);
 
         Ok(img_hdr_v)
@@ -119,6 +129,45 @@ impl XBE {
 
         for l in self.library_version.iter() {
             v.append(&mut l.serialize()?);
+        }
+
+        Ok(v)
+    }
+
+    pub fn serialize_sections(&self) -> Result<Vec<u8>> {
+        let mut v = vec![];
+
+        if self.section_headers.len() != self.sections.len() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Number of section headers does not match number of sections.",
+            ));
+        }
+
+        // sort headers by raw address
+        // TODO: This currently makes some assumptions that may or may not be true.
+        // it doesn't actually ensure that the raw_address field of the section header is
+        // where the section is actually placed. Instead it places the sections order from
+        // lowest raw address to highest and pads them to the next 0x1000 bytes.
+        // This approach works for BfBB but may not for other xbes
+        let mut sorted_headers = vec![];
+        for i in 0..self.section_headers.len() {
+            sorted_headers.push((&self.section_headers[i], &self.sections[i]));
+        }
+        sorted_headers.sort_by(|a, b| {
+            if a.0.raw_address > b.0.raw_address {
+                std::cmp::Ordering::Greater
+            } else if a.0.raw_address == b.0.raw_address {
+                std::cmp::Ordering::Equal
+            } else {
+                std::cmp::Ordering::Less
+            }
+        });
+
+        for (_, sec) in sorted_headers {
+            // let s = &self.sections[i];
+            v.append(&mut sec.serialize()?);
+            pad_to_nearest(&mut v, 0x1000);
         }
 
         Ok(v)
@@ -381,6 +430,17 @@ pub struct TLS {
     pub characteristics: u32,
 }
 
+#[derive(Debug, Default)]
+pub struct Section {
+    pub bytes: Vec<u8>,
+}
+
+impl Section {
+    pub fn serialize(&self) -> Result<Vec<u8>> {
+        Ok(self.bytes.clone())
+    }
+}
+
 pub fn load_xbe(mut file: File) -> std::io::Result<XBE> {
     // let mut xbe = XBE::default();
 
@@ -402,6 +462,12 @@ pub fn load_xbe(mut file: File) -> std::io::Result<XBE> {
     let debug_pathname = load_debug_pathname(&mut file, &image_header)?;
     let debug_unicode_filename = load_debug_unicode_filename(&mut file, &image_header)?;
 
+    // Read sections
+    let mut sections = vec![];
+    for sec_hdr in section_headers.iter() {
+        sections.push(load_section(&mut file, sec_hdr)?);
+    }
+
     // Read library versions
     let library_version = load_library_versions(&mut file, &image_header)?;
     Ok(XBE {
@@ -414,6 +480,7 @@ pub fn load_xbe(mut file: File) -> std::io::Result<XBE> {
         debug_pathname,
         debug_unicode_filename,
         logo_bitmap,
+        sections,
     })
 }
 
@@ -619,6 +686,17 @@ fn load_logo_bitmap(file: &mut File, image_header: &ImageHeader) -> Result<LogoB
     Ok(LogoBitmap { bitmap: buf })
 }
 
+fn load_section(file: &mut File, section_header: &SectionHeader) -> Result<Section> {
+    file.seek(SeekFrom::Start(section_header.raw_address as u64))?;
+    let mut section = Section::default();
+
+    let mut buf = vec![0u8; section_header.raw_size as usize];
+    file.read_exact(&mut buf)?;
+    section.bytes = buf;
+
+    Ok(section)
+}
+
 /// This is a testing function to learn the format
 /// Adding extra header padding expands into the beginning of section virtual memory
 /// So this crashes the system somewhere beyond 0x800 added bytes (and likely corrupts
@@ -677,13 +755,6 @@ pub fn add_padding_bytes(num_bytes: u32, xbe: &XBE) -> Result<()> {
 }
 
 pub fn add_test_section(xbe: &XBE) -> Result<()> {
-    let mut f = OpenOptions::new()
-        .write(true)
-        .truncate(true)
-        .open("output/default.xbe")?;
-
-    let v = xbe.serialize_headers()?;
-    f.write(&v)?;
     // const size: u32 = 0x10;
     // const section: &[u8] = b"0123456789ABCDEF";
 
