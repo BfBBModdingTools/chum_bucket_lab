@@ -5,6 +5,7 @@ pub mod ui;
 use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
 
 use data::{AppData, Mod};
+use linker::xbe;
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
 
@@ -36,16 +37,7 @@ impl Config {
 
 pub fn main() {
     //TEMPORARY
-    let mut xbe =
-        linker::xbe::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
-    let _ = linker::xbe::add_test_section(&mut xbe);
-    let mut output = std::fs::OpenOptions::new()
-        .create(true)
-        .write(true)
-        .truncate(true)
-        .open("output/default.xbe")
-        .unwrap();
-    let _ = output.write(&xbe.serialize().unwrap());
+    xbe::XBE::from_raw_and_back_to_file();
 
     // Get config from command line args
     let args: Vec<String> = env::args().collect();
