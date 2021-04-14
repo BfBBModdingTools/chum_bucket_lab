@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use bitflags::bitflags;
 
 pub struct XBE {
@@ -8,12 +10,27 @@ pub struct XBE {
 }
 
 impl XBE {
-    pub fn from_raw_and_back_to_file() {
-        let raw = raw::load_xbe(std::fs::File::open("baserom/default.xbe").unwrap()).unwrap();
-        let me = Self::from_raw(&raw);
-        let new = Self::convert_to_raw(&me);
-        let bytes = new.serialize().unwrap();
-        std::fs::write("output/default.xbe", &bytes).unwrap();
+    pub fn new<P>(path: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        Self::from_raw(&raw::load_xbe(std::fs::File::open(path).unwrap()).unwrap())
+    }
+
+    pub fn write_to_file<P>(&self, path: P)
+    where
+        P: AsRef<Path>,
+    {
+        std::fs::write(path, &self.convert_to_raw().serialize().unwrap()).unwrap();
+    }
+
+    pub fn add_test_section(&mut self) {
+        self.sections.push(Section {
+            name: ".TEST\0".to_owned(),
+            flags: SectionFlags::PRELOAD,
+            data: b"0123456789ABCDEF".to_vec(),
+            virtual_size: 0x10,
+        })
     }
 
     fn convert_to_raw(&self) -> raw::XBE {
@@ -101,15 +118,13 @@ impl XBE {
             .collect();
 
         let library_versions = self.library_versions.clone();
-        let (kernel_index, _) = library_versions
+        let kernel_index = library_versions
             .iter()
-            .enumerate()
-            .find(|l| l.1.library_name.eq(b"XBOXKRNL"))
+            .position(|l| l.library_name.eq(b"XBOXKRNL"))
             .expect("No Kernel Library!");
-        let (xapi_index, _) = library_versions
+        let xapi_index = library_versions
             .iter()
-            .enumerate()
-            .find(|l| l.1.library_name.eq(b"XAPILIB\0"))
+            .position(|l| l.library_name.eq(b"XAPILIB\0"))
             .expect("No XAPILIB!");
         let library_versions_size = library_versions.len() as u32 * 0x10;
 
@@ -120,8 +135,6 @@ impl XBE {
                 bytes: s.data.clone(),
             })
             .collect();
-
-        let last_hdr = section_headers.last().expect("No Sections in XBE!");
 
         let size_of_image = virtual_address - base_address;
 
@@ -347,15 +360,9 @@ bitflags! {
     }
 }
 
-#[allow(dead_code)]
 mod raw {
-    const DEBUG_ENTRY_POINT_KEY: u32 = 0x94859D4B;
-    const RETAIL_ENTRY_POINT_KEY: u32 = 0xA8FC57AB;
-    const DEBUG_KERNEL_IMAGE_THUNK_ADDRESS_KEY: u32 = 0xEFB1F152;
-    const RETAIL_KERNEL_IMAGE_THUNK_ADDRESS_KEY: u32 = 0x5B6D40B6;
-
     use std::{
-        fs::{File, OpenOptions},
+        fs::File,
         io,
         io::{Read, Result, Seek, SeekFrom, Write},
     };
@@ -388,41 +395,6 @@ mod raw {
     }
 
     impl XBE {
-        pub fn convert_to_logical(&self) -> super::XBE {
-            unimplemented!()
-        }
-
-        fn get_last_virtual_address(&self) -> u32 {
-            match self.section_headers.last() {
-                None => 0,
-                Some(h) => h.virtual_address,
-            }
-        }
-
-        fn get_last_raw_address(&self) -> u32 {
-            // sort headers by raw address
-            // TODO: This currently makes some assumptions that may or may not be true.
-            // it doesn't actually ensure that the raw_address field of the section header is
-            // where the section is actually placed. Instead it places the sections order from
-            // lowest raw address to highest and pads them to the next 0x1000 bytes.
-            // This approach works for BfBB but may not for other xbes
-            let mut sorted_headers: Vec<&SectionHeader> = self.section_headers.iter().collect();
-            sorted_headers.sort_by(|a, b| {
-                if a.raw_address > b.raw_address {
-                    std::cmp::Ordering::Greater
-                } else if a.raw_address == b.raw_address {
-                    std::cmp::Ordering::Equal
-                } else {
-                    std::cmp::Ordering::Less
-                }
-            });
-
-            match sorted_headers.last() {
-                None => 0,
-                Some(h) => h.raw_address,
-            }
-        }
-
         /// Serialize this XBE object to a valid .xbe executable
         ///
         /// Note: this currently results in an xbe file with less ending padding
@@ -1101,128 +1073,5 @@ mod raw {
         section.bytes = buf;
 
         Ok(section)
-    }
-
-    /// This is a testing function to learn the format
-    /// Adding extra header padding expands into the beginning of section virtual memory
-    /// So this crashes the system somewhere beyond 0x800 added bytes (and likely corrupts
-    /// game memory somewhere before that)
-    fn add_padding_bytes(num_bytes: u32, xbe: &XBE) -> Result<()> {
-        std::fs::copy("baserom/default.xbe", "output/default.xbe")?;
-
-        {
-            let mut output = OpenOptions::new().write(true).open("output/default.xbe")?;
-            output.seek(SeekFrom::Current(0x108))?;
-            output.write_u32::<LE>(xbe.image_header.size_of_headers + num_bytes)?;
-            output.seek(SeekFrom::Current(0xC))?;
-            output.write_u32::<LE>(xbe.image_header.certificate_address + num_bytes)?;
-            output.seek(SeekFrom::Current(4))?;
-            output.write_u32::<LE>(xbe.image_header.section_headers_address + num_bytes)?;
-
-            output.seek(SeekFrom::Current(0x28))?;
-            output.write_u32::<LE>(xbe.image_header.debug_pathname_address + num_bytes)?;
-            output.write_u32::<LE>(xbe.image_header.debug_filename_address + num_bytes)?;
-            output.write_u32::<LE>(xbe.image_header.debug_unicode_filename_address + num_bytes)?;
-
-            output.seek(SeekFrom::Current(0x10))?;
-            output.write_u32::<LE>(xbe.image_header.library_versions_address + num_bytes)?;
-            output.write_u32::<LE>(xbe.image_header.kernel_library_version_address + num_bytes)?;
-            output.write_u32::<LE>(xbe.image_header.xapi_library_version_address + num_bytes)?;
-            output.write_u32::<LE>(xbe.image_header.logo_bitmap_address + num_bytes)?;
-
-            output.seek(SeekFrom::Current(4))?;
-            let buf = vec![0u8; num_bytes as usize];
-            output.write(&buf)?;
-        }
-
-        let rest = std::fs::read("baserom/default.xbe")?;
-
-        let mut output = std::fs::OpenOptions::new()
-            .write(true)
-            .open("output/default.xbe")?;
-        output.seek(SeekFrom::Current(0x178 + (num_bytes as i64)))?;
-
-        output.write(&rest[0x178..])?;
-
-        for i in 0..xbe.image_header.number_of_sections {
-            output.seek(SeekFrom::Start(
-                (xbe.image_header.section_headers_address - xbe.image_header.base_address
-                    + num_bytes
-                    + (i * 0x38)
-                    + 0xC)
-                    .into(),
-            ))?;
-            output.write_u32::<LE>(xbe.section_headers[i as usize].raw_address + num_bytes)?;
-            output.seek(SeekFrom::Current(4))?;
-            output.write_u32::<LE>(
-                xbe.section_headers[i as usize].section_name_address + num_bytes,
-            )?;
-        }
-
-        Ok(())
-    }
-
-    fn add_test_section(xbe: &mut XBE) -> Result<()> {
-        let size = 0x10;
-        let data = b"0123456789ABCDEF";
-
-        // Update image header
-        xbe.image_header.size_of_headers += 0x40; //TODO: This needs to be calculated correctly
-        xbe.image_header.size_of_image += size;
-        xbe.image_header.number_of_sections += 1;
-        xbe.image_header.debug_pathname_address += 0x40;
-        xbe.image_header.debug_filename_address += 0x40;
-        xbe.image_header.debug_unicode_filename_address += 0x40;
-        xbe.image_header.library_versions_address += 0x40;
-        xbe.image_header.kernel_library_version_address += 0x40;
-        xbe.image_header.xapi_library_version_address += 0x40;
-
-        // Update existing sections
-        for s in xbe.section_headers.iter_mut() {
-            s.section_name_address += 0x38 + 2;
-            s.head_shared_page_reference_count_address += 0x38;
-            s.tail_shared_page_reference_count_address += 0x38;
-        }
-
-        let (virtual_address, raw_address, section_name_address, hsprca, tsprca) =
-            match xbe.section_headers.last() {
-                None => panic!("Section headers vec is empty!"),
-                Some(h) => {
-                    let end = xbe.get_last_raw_address();
-                    let last_name = xbe
-                        .section_names
-                        .last()
-                        .expect("Section names vec is empty!");
-
-                    (
-                        h.virtual_address + h.virtual_size,
-                        end + ((0x1000 - end % 0x1000) % 0x1000),
-                        h.section_name_address + last_name.len() as u32 + 1,
-                        h.tail_shared_page_reference_count_address,
-                        h.tail_shared_page_reference_count_address + 2,
-                    )
-                }
-            };
-
-        let sec_hdr = SectionHeader {
-            section_flags: 0x2,
-            virtual_address,
-            virtual_size: size,
-            raw_address,
-            raw_size: size,
-            section_name_address: section_name_address,
-            section_name_reference_count: 0,
-            head_shared_page_reference_count_address: hsprca,
-            tail_shared_page_reference_count_address: tsprca,
-            section_digest: [0u8; 0x14],
-        };
-
-        xbe.section_headers.push(sec_hdr);
-        xbe.section_names.push(".TEST".to_owned());
-        xbe.sections.push(Section {
-            bytes: data.to_vec(),
-        });
-
-        Ok(())
     }
 }

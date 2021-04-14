@@ -37,7 +37,10 @@ impl Config {
 
 pub fn main() {
     //TEMPORARY
-    xbe::XBE::from_raw_and_back_to_file();
+    let mut xbe = xbe::XBE::new("baserom/default.xbe");
+    xbe.add_test_section();
+    xbe.add_test_section();
+    xbe.write_to_file("output/default.xbe");
 
     // Get config from command line args
     let args: Vec<String> = env::args().collect();
