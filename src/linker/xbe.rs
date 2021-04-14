@@ -19,7 +19,7 @@ fn pad_to_nearest(v: &mut Vec<u8>, to: usize) {
 }
 
 #[derive(Default, Debug)]
-pub struct XBE {
+pub struct Raw {
     pub image_header: ImageHeader,
     pub certificate: Certificate,
     pub section_headers: Vec<SectionHeader>,
@@ -32,7 +32,7 @@ pub struct XBE {
     pub sections: Vec<Section>,
 }
 
-impl XBE {
+impl Raw {
     pub fn get_last_virtual_address(&self) -> u32 {
         match self.section_headers.last() {
             None => 0,
@@ -477,7 +477,7 @@ impl Section {
     }
 }
 
-pub fn load_xbe(mut file: File) -> std::io::Result<XBE> {
+pub fn load_xbe(mut file: File) -> std::io::Result<Raw> {
     // let mut xbe = XBE::default();
 
     // Read header data
@@ -506,7 +506,7 @@ pub fn load_xbe(mut file: File) -> std::io::Result<XBE> {
 
     // Read library versions
     let library_version = load_library_versions(&mut file, &image_header)?;
-    Ok(XBE {
+    Ok(Raw {
         image_header,
         certificate,
         section_headers,
@@ -737,7 +737,7 @@ fn load_section(file: &mut File, section_header: &SectionHeader) -> Result<Secti
 /// Adding extra header padding expands into the beginning of section virtual memory
 /// So this crashes the system somewhere beyond 0x800 added bytes (and likely corrupts
 /// game memory somewhere before that)
-pub fn add_padding_bytes(num_bytes: u32, xbe: &XBE) -> Result<()> {
+pub fn add_padding_bytes(num_bytes: u32, xbe: &Raw) -> Result<()> {
     std::fs::copy("baserom/default.xbe", "output/default.xbe")?;
 
     {
@@ -790,7 +790,7 @@ pub fn add_padding_bytes(num_bytes: u32, xbe: &XBE) -> Result<()> {
     Ok(())
 }
 
-pub fn add_test_section(xbe: &mut XBE) -> Result<()> {
+pub fn add_test_section(xbe: &mut Raw) -> Result<()> {
     let size = 0x10;
     let data = b"0123456789ABCDEF";
 
