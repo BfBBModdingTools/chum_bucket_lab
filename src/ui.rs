@@ -12,7 +12,7 @@ use crate::data::{AppData, Mod, Patch, Rom};
 
 const PANEL_SPACING: f64 = 10.0;
 const LABEL_SPACING: f64 = 5.0;
-const BG_COLOR: Color = Color::grey8(0xa0);
+const BG_COLOR: Color = Color::grey8(0x80);
 
 impl ListIter<(AppData, Mod)> for AppData {
     fn for_each(&self, mut cb: impl FnMut(&(AppData, Mod), usize)) {
