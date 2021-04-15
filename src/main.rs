@@ -54,13 +54,10 @@ pub fn main() {
     }
 
     //TODO: Error prompt when this fails
-    let modlist = match parse_modlist() {
-        Err(_) => {
-            println!("Failed to parse modlist");
-            Vec::new()
-        }
-        Ok(list) => list,
-    };
+    let modlist = parse_modlist().unwrap_or_else(|_| {
+        println!("Failed to parse modlist");
+        Vec::new()
+    });
 
     AppLauncher::with_window(main_window)
         .delegate(ui::Delegate)
@@ -70,23 +67,19 @@ pub fn main() {
 }
 
 fn update_modlist() {
-    match reqwest::blocking::get(data::URL_MODLIST) {
-        Err(_) => println!("Failed to retrieve modslist from internet"), // TODO: Interent connectivity error
-        Ok(response) => match response.text() {
-            Err(_) => println!("Failed to convert HTTP response to text"), // TODO: Not sure when this happens
-            Ok(modlist_json) => match fs::OpenOptions::new()
+    match reqwest::blocking::get(data::URL_MODLIST).and_then(|r| r.text()) {
+        Ok(text) => {
+            if let Err(_) = fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(true)
                 .open(data::PATH_MODLIST)
+                .and_then(|mut f| f.write_all(text.as_bytes()))
             {
-                Err(_) => println!("Failed to write updated file to disk"), // TODO: File access error
-                Ok(mut file) => match file.write_all(modlist_json.as_bytes()) {
-                    Ok(_) => (),
-                    Err(_) => (),
-                },
-            },
-        },
+                println!("Failed to write updated file to disk");
+            }
+        }
+        Err(_) => println!("Failed to retrieve modslist from internet"),
     }
 }
 
