@@ -13,6 +13,7 @@ reqwest = {version="0.10.4", features=["blocking"]}
 byteorder = "1"
 sha-1="0.9.4"
 bitflags="1.2.1"
+goblin="0.4.0"
 
 [dependencies.druid]
 version = "0.7.0"
