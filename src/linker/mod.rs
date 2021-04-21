@@ -23,7 +23,7 @@ pub fn test(xbe: &mut XBE) {
     let bytes = fs::read("mod.o").unwrap();
     let coff = Coff::parse(&bytes).unwrap();
 
-    // Create
+    // Create sections at correct addresses
     let mut secs = vec![];
     let mut sec_starts = HashMap::new();
     let mut next_virtual_addr = xbe.get_next_virtual_address();
@@ -63,9 +63,9 @@ pub fn test(xbe: &mut XBE) {
     }
 
     // create symbol table
-    // TODO: a lot
+    // TODO: a lot (implement all the other relevant Storage Classes)
     let mut symbol_table = HashMap::new();
-    for (index, name, symbol) in coff.symbols.iter() {
+    for (_index, _name, symbol) in coff.symbols.iter() {
         match symbol.storage_class {
             pe::symbol::IMAGE_SYM_CLASS_EXTERNAL if symbol.typ == 0x20 => {
                 symbol_table.insert(
@@ -112,6 +112,7 @@ pub fn test(xbe: &mut XBE) {
             };
 
             // find data to update
+            // TODO: This is assuming 32 bit relocations
             let d_start = reloc.virtual_address as usize;
             let mut cur = std::io::Cursor::new(&mut sec.data);
             cur.set_position(d_start as u64);
