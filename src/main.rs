@@ -38,8 +38,8 @@ impl Config {
 pub fn main() {
     //TEMPORARY
     let mut xbe = xbe::XBE::new("baserom/default.xbe");
-    xbe.add_test_section();
-    xbe.add_test_section();
+
+    linker::test(&mut xbe);
     xbe.write_to_file("output/default.xbe");
 
     // Get config from command line args

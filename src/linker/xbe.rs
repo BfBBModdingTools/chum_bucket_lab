@@ -24,13 +24,18 @@ impl XBE {
         std::fs::write(path, &self.convert_to_raw().serialize().unwrap()).unwrap();
     }
 
-    pub fn add_test_section(&mut self) {
-        self.sections.push(Section {
-            name: ".TEST\0".to_owned(),
-            flags: SectionFlags::PRELOAD,
-            data: b"0123456789ABCDEF".to_vec(),
-            virtual_size: 0x10,
-        })
+    pub fn get_next_virtual_address(&self) -> u32 {
+        match self.sections.last() {
+            None => 0,
+            Some(s) => {
+                let end = s.virtual_address + s.virtual_size;
+                end + ((0x20 - end % 0x20) % 0x20)
+            }
+        }
+    }
+
+    pub fn add_section(&mut self, section: Section) {
+        self.sections.push(section);
     }
 
     fn convert_to_raw(&self) -> raw::XBE {
@@ -74,6 +79,9 @@ impl XBE {
         // TODO: This assumes the header will never grow past 0x1000 bytes
         // Fixing this requires managing more pointers like TLS, Kernel Thunk,
         // and Entry Point, as it will move the vanilla sections
+
+        // TODO: Use the virtual_address field added to Section (and ensure that
+        // it is properly set)
         let mut virtual_address = 0x11000;
         let mut raw_address = 0x1000;
         let section_headers: Vec<raw::SectionHeader> = self
@@ -275,8 +283,9 @@ impl XBE {
             .map(|t| Section {
                 name: t.1.clone(),
                 flags: SectionFlags::from_bits_truncate(t.0 .1.section_flags),
-                data: t.0 .0.bytes.clone(),
+                virtual_address: t.0 .1.virtual_address,
                 virtual_size: t.0 .1.virtual_size,
+                data: t.0 .0.bytes.clone(),
             })
             .collect();
 
@@ -346,6 +355,7 @@ pub struct Section {
     pub name: String,
     pub flags: SectionFlags,
     pub data: Vec<u8>,
+    pub virtual_address: u32,
     pub virtual_size: u32,
 }
 
