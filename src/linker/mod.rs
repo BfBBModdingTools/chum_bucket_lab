@@ -33,6 +33,11 @@ pub fn test(xbe: &mut XBE) {
             Some(sec) => sec,
         };
 
+        // Skip if there's no data (externals) for now
+        if sec.size_of_raw_data == 0 {
+            continue;
+        }
+
         // Find the sections we're interested in
         let (name, flags) = match String::from_utf8(sec.name.to_vec()).as_deref() {
             Ok(".text\0\0\0") => (".mtext\0", SectionFlags::PRELOAD | SectionFlags::EXECUTABLE),
