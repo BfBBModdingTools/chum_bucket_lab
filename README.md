@@ -1,4 +1,4 @@
-# BfBB Modloader
+# Chum Bucket Lab
 
 This repository contains a WIP mod loader for the 2003 3D platformer SpongeBob SquarePants: Battle for Bikini Bottom. It currently has some ability to automatically apply a custom set of IPS patches given a clean base `default.xbe` executable from the Xbox version of the game. Once sufficient progress is made, this README will be updated and pre-release versions will be build and distributed.
 

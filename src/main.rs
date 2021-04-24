@@ -9,7 +9,7 @@ use linker::xbe;
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
 
-const WINDOW_TITLE: &str = "bfbb_modloader";
+const WINDOW_TITLE: &str = "chum_bucket_lab";
 
 #[derive(Clone, Debug)]
 struct Config {
@@ -47,7 +47,7 @@ pub fn main() {
     let config = Config::new(&args);
 
     let main_window = WindowDesc::new(ui::ui_builder)
-        .title(LocalizedString::new(WINDOW_TITLE).with_placeholder("BfBB Modloader"));
+        .title(LocalizedString::new(WINDOW_TITLE).with_placeholder("Chum Bucket Lab"));
 
     if config.check_update {
         update_modlist();
