@@ -28,9 +28,9 @@ impl Config {
             return Config::DEFAULT_CONFIG.to_owned();
         }
 
-        match &args[2].parse::<bool>() {
+        match args[2].parse::<bool>() {
             Err(_) => Config::DEFAULT_CONFIG.to_owned(),
-            Ok(b) => Config { check_update: *b },
+            Ok(b) => Config { check_update: b },
         }
     }
 }
