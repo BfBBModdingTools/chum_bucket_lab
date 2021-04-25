@@ -4,7 +4,7 @@ use std::collections::hash_map::HashMap;
 use std::fs;
 
 use goblin::pe;
-use goblin::pe::Coff;
+use goblin::pe::{relocation::Relocations, Coff};
 
 use byteorder::{ReadBytesExt, WriteBytesExt, LE};
 
@@ -24,6 +24,23 @@ pub fn test(xbe: &mut XBE) {
     let coff = Coff::parse(&bytes).unwrap();
 
     // Create sections at correct addresses
+    let (secs, sec_starts) = initialize_sections(xbe, &coff, &bytes);
+
+    // create symbol table
+    let symbol_table = make_symbol_table(&coff, &sec_starts);
+
+    // evaluate relocations
+    evaluate_relocations(xbe, &coff, secs, &symbol_table);
+}
+
+fn initialize_sections<'a>(
+    xbe: &XBE,
+    coff: &'a Coff,
+    bytes: &'a Vec<u8>,
+) -> (
+    Vec<(Section, Result<Relocations<'a>, goblin::error::Error>)>,
+    HashMap<usize, u32>,
+) {
     let mut secs = vec![];
     let mut sec_starts = HashMap::new();
     let mut next_virtual_addr = xbe.get_next_virtual_address();
@@ -66,8 +83,10 @@ pub fn test(xbe: &mut XBE) {
         next_virtual_addr += sec.size_of_raw_data;
         next_virtual_addr += (0x20 - next_virtual_addr % 0x20) % 0x20;
     }
+    (secs, sec_starts)
+}
 
-    // create symbol table
+fn make_symbol_table(coff: &Coff, sec_starts: &HashMap<usize, u32>) -> HashMap<String, u32> {
     // TODO: a lot (implement all the other relevant Storage Classes)
     let mut symbol_table = HashMap::new();
     for (_index, _name, symbol) in coff.symbols.iter() {
@@ -76,7 +95,16 @@ pub fn test(xbe: &mut XBE) {
                 symbol_table.insert(
                     symbol.name(&coff.strings).unwrap().to_owned(),
                     match sec_starts.get(&(symbol.section_number as usize - 1)) {
-                        Some(snum) => *snum,
+                        Some(addr) => *addr + symbol.value,
+                        None => continue,
+                    },
+                );
+            }
+            pe::symbol::IMAGE_SYM_CLASS_EXTERNAL if symbol.section_number > 0 => {
+                symbol_table.insert(
+                    symbol.name(&coff.strings).unwrap().to_owned(),
+                    match sec_starts.get(&(symbol.section_number as usize - 1)) {
+                        Some(addr) => *addr + symbol.value,
                         None => continue,
                     },
                 );
@@ -89,7 +117,7 @@ pub fn test(xbe: &mut XBE) {
                 symbol_table.insert(
                     symbol.name(&coff.strings).unwrap().to_owned(),
                     match sec_starts.get(&(symbol.section_number as usize - 1)) {
-                        Some(snum) => *snum,
+                        Some(addr) => *addr,
                         None => continue,
                     },
                 );
@@ -98,8 +126,15 @@ pub fn test(xbe: &mut XBE) {
             _ => todo!("storage_class {} not implemented", symbol.storage_class),
         }
     }
+    symbol_table
+}
 
-    // evaluate relocations
+fn evaluate_relocations(
+    xbe: &mut XBE,
+    coff: &pe::Coff,
+    secs: Vec<(Section, Result<Relocations, goblin::error::Error>)>,
+    symbol_table: &HashMap<String, u32>,
+) {
     for (mut sec, relocs) in secs {
         let relocs = relocs.unwrap_or_else(|_| goblin::pe::relocation::Relocations::default());
 
