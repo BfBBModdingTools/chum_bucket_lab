@@ -1,11 +1,9 @@
 pub mod data;
-pub mod linker;
 pub mod ui;
 
 use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
 
 use data::{AppData, Mod};
-use linker::xbe;
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
 
@@ -36,12 +34,6 @@ impl Config {
 }
 
 pub fn main() {
-    //TEMPORARY
-    let mut xbe = xbe::XBE::new("baserom/default.xbe");
-
-    linker::test(&mut xbe);
-    xbe.write_to_file("output/default.xbe");
-
     // Get config from command line args
     let args: Vec<String> = env::args().collect();
     let config = Config::new(&args);
