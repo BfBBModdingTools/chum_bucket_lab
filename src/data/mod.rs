@@ -5,9 +5,9 @@ use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
 
-pub const PATH_MODLIST: &str = "mods.json";
+pub const PATH_MODLIST: &str = "mods.toml";
 pub const URL_MODLIST: &str =
-    "https://raw.githubusercontent.com/BfBBModdingTools/chum_bucket_lab/master/mods.json";
+    "https://raw.githubusercontent.com/BfBBModdingTools/chum_bucket_lab/master/mods.toml";
 
 pub const PATH_ROM: &str = "baserom/default.xbe";
 const PATH_OUTPUT: &str = "output";
@@ -27,6 +27,11 @@ impl AppData {
             response: String::with_capacity(256),
         }
     }
+}
+
+#[derive(Deserialize)]
+pub struct ModList {
+    pub mods: Vec<Mod>,
 }
 
 // TOOD: Consider not needing PartialEq

@@ -3,7 +3,7 @@ pub mod ui;
 
 use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
 
-use data::{AppData, Mod};
+use data::{AppData, ModList};
 use std::io::{Error, ErrorKind, Write};
 use std::{env, fs};
 
@@ -49,7 +49,7 @@ pub fn main() {
     }
 
     //TODO: Error prompt when this fails
-    let modlist = parse_modlist().unwrap_or_else(|_| {
+    let modlist = parse_modlist().map(|m| m.mods).unwrap_or_else(|_| {
         println!("Failed to parse modlist");
         Vec::new()
     });
@@ -78,15 +78,18 @@ fn update_modlist() {
     }
 }
 
-fn parse_modlist() -> std::io::Result<Vec<Mod>> {
+fn parse_modlist() -> std::io::Result<ModList> {
     // TODO: Consider if saving the modlist locally is even necessary
     // Note: Keeping a local copy enables the app to still function even
     // if we fail to download latest version even though the user has a valid
     // internet connection
-    let file = fs::File::open(data::PATH_MODLIST)?;
+    let file = fs::read_to_string(data::PATH_MODLIST)?;
 
-    match serde_json::from_reader::<_, Vec<Mod>>(file) {
-        Err(e) => Err(Error::new(ErrorKind::InvalidData, e)), //Failed to deserialize file
+    match toml::from_str(file.as_str()) {
+        Err(e) => {
+            eprintln!("{}", e);
+            Err(Error::new(ErrorKind::InvalidData, e)) //Failed to deserialize file
+        }
         Ok(modlist) => Ok(modlist),
     }
 }
