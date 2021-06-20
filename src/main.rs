@@ -17,7 +17,11 @@ impl Config {
     const DEFAULT_CONFIG: Config = Config { check_update: true };
     const OPTION_UPDATE: &'static str = "--update";
 
-    fn new(args: &[String]) -> Self {
+    fn parse_args<I>(args: I) -> Self
+    where
+        I: Iterator<Item = String>,
+    {
+        let args: Vec<_> = args.collect();
         if args.len() < 3 {
             return Config::DEFAULT_CONFIG.to_owned();
         }
@@ -35,8 +39,7 @@ impl Config {
 
 pub fn main() {
     // Get config from command line args
-    let args: Vec<String> = env::args().collect();
-    let config = Config::new(&args);
+    let config = Config::parse_args(env::args());
 
     let main_window = WindowDesc::new(ui::ui_builder)
         .title(LocalizedString::new(WINDOW_TITLE).with_placeholder("Chum Bucket Lab"));
