@@ -1,7 +1,7 @@
 pub mod data;
 pub mod ui;
 
-use druid::{im::Vector, AppLauncher, LocalizedString, WindowDesc};
+use druid::{AppLauncher, LocalizedString, WindowDesc};
 
 use data::{AppData, ModList};
 use std::io::{Error, ErrorKind, Write};
@@ -49,15 +49,15 @@ pub fn main() {
     }
 
     //TODO: Error prompt when this fails
-    let modlist = parse_modlist().map(|m| m.mods).unwrap_or_else(|_| {
+    let modlist = parse_modlist().unwrap_or_else(|_| {
         println!("Failed to parse modlist");
-        Vec::new()
+        ModList { mods: Vec::new() }
     });
 
     AppLauncher::with_window(main_window)
         .delegate(ui::Delegate)
         .use_simple_logger()
-        .launch(AppData::new(Vector::from(modlist)))
+        .launch(AppData::new(modlist))
         .expect("launch failed");
 }
 
