@@ -4,35 +4,47 @@ use ips::Ips;
 use druid::{im::Vector, Data, Lens};
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
+use std::sync::Arc;
 
-pub const PATH_MODLIST: &str = "mods.json";
+pub const PATH_MODLIST: &str = "mods.toml";
 pub const URL_MODLIST: &str =
-    "https://raw.githubusercontent.com/BfBBModdingTools/chum_bucket_lab/master/mods.json";
+    "https://raw.githubusercontent.com/BfBBModdingTools/chum_bucket_lab/master/mods.toml";
 
 pub const PATH_ROM: &str = "baserom/default.xbe";
 const PATH_OUTPUT: &str = "output";
 
 #[derive(Clone, Data, Lens)]
 pub struct AppData {
-    pub modlist: Vector<Mod>,
+    #[data(ignore)]
+    pub modlist: Arc<ModList>,
+    pub enabled_mods: Vector<bool>,
     pub selected_mod: Option<usize>,
     pub response: String,
 }
 
 impl AppData {
-    pub fn new(modlist: Vector<Mod>) -> AppData {
+    pub fn new(modlist: ModList) -> AppData {
         AppData {
-            selected_mod: if modlist.is_empty() { None } else { Some(0) },
-            modlist,
+            selected_mod: if modlist.mods.is_empty() {
+                None
+            } else {
+                Some(0)
+            },
+            enabled_mods: Vector::from(vec![false; modlist.mods.len()]),
+            modlist: Arc::new(modlist),
             response: String::with_capacity(256),
         }
     }
 }
 
+#[derive(Deserialize)]
+pub struct ModList {
+    pub mods: Vec<Mod>,
+}
+
 // TOOD: Consider not needing PartialEq
-#[derive(Data, Clone, PartialEq, Lens, Deserialize)]
+#[derive(Debug, Data, Clone, PartialEq, Lens, Deserialize)]
 pub struct Mod {
-    pub enabled: bool,
     pub name: String,
     pub author: String,
     pub description: String,
@@ -72,7 +84,7 @@ impl Rom {
         Ok(Rom { bytes })
     }
 
-    pub fn verify_hash(bytes: &Vec<u8>) -> bool {
+    pub fn verify_hash(bytes: &[u8]) -> bool {
         let mut hasher = Sha1::new();
         hasher.update(&bytes);
         let hash = hasher.finalize();

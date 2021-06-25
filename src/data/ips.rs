@@ -1,7 +1,7 @@
 use byteorder::{BigEndian, ByteOrder};
 use std::io::{Cursor, Read};
 
-const EOF: &'static [u8] = &[b'E', b'O', b'F'];
+const EOF: &[u8] = &[b'E', b'O', b'F'];
 
 pub struct Ips {
     file: Cursor<Vec<u8>>,

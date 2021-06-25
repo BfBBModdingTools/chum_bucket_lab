@@ -1,0 +1,6 @@
+[[mods]]
+name = "Disable Autosave"
+author = "TheCoolSquare"
+description = "This mod prevents the autosave feature from becoming enabled. This allows you to practice efficiently without having to use one save slot as a scratch file."
+website_url = "https://github.com/SquareMan/bfbbnoautosave"
+download_url = "https://github.com/SquareMan/bfbbnoautosave/raw/master/nosavegame.ips"

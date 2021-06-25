@@ -3,7 +3,7 @@ use druid::{
     AppDelegate, DelegateCtx, EventCtx, Handled,
 };
 use druid::{
-    Color, Command, Data, Env, FileDialogOptions, FileSpec, Lens, LocalizedString, Target, Widget,
+    Color, Command, Env, FileDialogOptions, FileSpec, Lens, LocalizedString, Target, Widget,
     WidgetExt,
 };
 
@@ -14,50 +14,49 @@ const PANEL_SPACING: f64 = 10.0;
 const LABEL_SPACING: f64 = 5.0;
 const BG_COLOR: Color = Color::grey8(0x80);
 
-impl ListIter<(AppData, Mod)> for AppData {
-    fn for_each(&self, mut cb: impl FnMut(&(AppData, Mod), usize)) {
-        for (i, item) in self.modlist.iter().enumerate() {
-            cb(&(self.clone(), item.to_owned()), i)
+impl ListIter<(AppData, Mod, bool)> for AppData {
+    fn for_each(&self, mut cb: impl FnMut(&(AppData, Mod, bool), usize)) {
+        for (i, item) in self.enabled_mods.iter().enumerate() {
+            cb(
+                &(self.clone(), self.modlist.mods[i].clone(), item.to_owned()),
+                i,
+            )
         }
     }
 
-    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppData, Mod), usize)) {
-        let mut new_data = Vec::new();
-        let mut self_clone = self.clone();
+    fn for_each_mut(&mut self, mut cb: impl FnMut(&mut (AppData, Mod, bool), usize)) {
+        let self_clone = self.clone();
 
-        for (i, item) in self.modlist.iter_mut().enumerate() {
-            let mut data = (self_clone.clone(), item.clone());
+        for (i, item) in self.enabled_mods.iter_mut().enumerate() {
+            let mut data = (self_clone.clone(), self.modlist.mods[i].clone(), *item);
             cb(&mut data, i);
 
-            if !data.0.selected_mod.same(&self_clone.selected_mod) {
-                self_clone = data.0;
-            }
+            // Update this mod's enabled status
+            *item = data.2;
 
-            if !data.1.same(item) {
-                new_data.push((data.1, i));
+            // Update selected mod
+            // We can't just blindly assign to self.selected_mod because subsequent iterations will
+            // begin with the previous value and then overwrite the new value
+            if self_clone.selected_mod != data.0.selected_mod {
+                self.selected_mod = data.0.selected_mod;
             }
-        }
-
-        self.clone_from(&self_clone);
-        for (m, i) in new_data.iter() {
-            self.modlist.get_mut(*i).unwrap().enabled = m.enabled;
         }
     }
 
     fn data_len(&self) -> usize {
-        self.modlist.data_len()
+        self.enabled_mods.data_len()
     }
 }
 
-struct EnabledLens;
+struct ModLens;
 
-impl Lens<(AppData, Mod), bool> for EnabledLens {
-    fn with<R, F: FnOnce(&bool) -> R>(&self, data: &(AppData, Mod), f: F) -> R {
-        f(&data.1.enabled)
+impl Lens<(AppData, Mod, bool), bool> for ModLens {
+    fn with<R, F: FnOnce(&bool) -> R>(&self, data: &(AppData, Mod, bool), f: F) -> R {
+        f(&data.2)
     }
 
-    fn with_mut<R, F: FnOnce(&mut bool) -> R>(&self, data: &mut (AppData, Mod), f: F) -> R {
-        f(&mut data.1.enabled)
+    fn with_mut<R, F: FnOnce(&mut bool) -> R>(&self, data: &mut (AppData, Mod, bool), f: F) -> R {
+        f(&mut data.2)
     }
 }
 
@@ -65,12 +64,10 @@ pub fn ui_builder() -> impl Widget<AppData> {
     // build mod panel
     let modlist_panel = Scroll::new(List::new(|| {
         Flex::row()
-            .with_child(Checkbox::new("").lens(EnabledLens))
+            .with_child(Checkbox::new("").lens(ModLens))
             .with_child(
-                Label::new(|(_, item): &(AppData, Mod), _env: &Env| item.name.clone()).on_click(
-                    |_, (list, item): &mut (AppData, Mod), _| {
-                        list.selected_mod = list.modlist.index_of(item);
-                    },
+                Label::new(|(_, m, _): &(AppData, Mod, bool), _: &Env| m.name.clone()).on_click(
+                    |_, (a, m, _), _| a.selected_mod = a.modlist.mods.iter().position(|x| x == m),
                 ),
             )
             .padding(LABEL_SPACING)
@@ -88,7 +85,7 @@ pub fn ui_builder() -> impl Widget<AppData> {
     // build information panel for selected mod
     let modinfo_panel = Label::new(|data: &AppData, _env: &Env| {
         if let Some(index) = data.selected_mod {
-            if let Some(m) = data.modlist.get(index) {
+            if let Some(m) = data.modlist.mods.get(index) {
                 return format! {"Name: {}\nAuthor: {}\n\n{}", m.name, m.author, m.description};
             }
         }
@@ -147,8 +144,14 @@ fn patch_button_on_click(ctx: &mut EventCtx, data: &mut AppData, _: &Env) {
 }
 
 fn apply_enabled_mods(data: &mut AppData) {
-    let modlist = data.modlist.clone();
-    let enabled_mods = modlist.iter().filter(|i| i.enabled).collect::<Vec<&Mod>>();
+    let modlist = &data.modlist;
+    let enabled_mods = data
+        .enabled_mods
+        .iter()
+        .enumerate()
+        .filter(|(_, enabled)| **enabled)
+        .map(|(i, _)| &modlist.mods[i])
+        .collect::<Vec<&Mod>>();
 
     if enabled_mods.is_empty() {
         set_response(data, "No mods selected");
@@ -162,15 +165,16 @@ fn apply_enabled_mods(data: &mut AppData) {
                 // Download Patch
                 match m.download() {
                     Err(_) => {
-                        set_response(data, format!("Failed to download {}", m.name));
+                        let response = format!("Failed to download {}", m.name);
+                        set_response(data, response);
+                        return;
                     }
                     Ok(patch_bytes) => {
                         let mut patch = Patch::new(patch_bytes);
-                        match patch.apply_to(&mut rom) {
-                            Err(_) => {
-                                set_response(data, format!("Failed to apply {}", m.name));
-                            }
-                            Ok(_) => (),
+                        if patch.apply_to(&mut rom).is_err() {
+                            let response = format!("Failed to apply {}", m.name);
+                            set_response(data, response);
+                            return;
                         }
                     }
                 }
@@ -197,17 +201,17 @@ impl AppDelegate<AppData> for Delegate {
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
-            if let Err(_) = std::fs::create_dir_all("baserom") {
+            if std::fs::create_dir_all("baserom").is_err() {
                 set_response(data, "Failed to make baserom directory");
                 return Handled::Yes;
             }
-            if let Err(_) = std::fs::copy(file_info.path(), data::PATH_ROM) {
+            if std::fs::copy(file_info.path(), data::PATH_ROM).is_err() {
                 set_response(data, "Failed to copy rom");
                 return Handled::Yes;
             }
 
             if let Ok(bytes) = std::fs::read(data::PATH_ROM) {
-                if Rom::verify_hash(&bytes) != true {
+                if !Rom::verify_hash(&bytes) {
                     set_response(data, "The imported file is not correct.");
                     let _ = std::fs::remove_file(PATH_ROM);
                 } else {
