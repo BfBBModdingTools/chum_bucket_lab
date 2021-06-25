@@ -26,7 +26,7 @@ impl Config {
             return Config::DEFAULT_CONFIG.to_owned();
         }
 
-        if &args[1] != Config::OPTION_UPDATE {
+        if args[1] != Config::OPTION_UPDATE {
             return Config::DEFAULT_CONFIG.to_owned();
         }
 
@@ -64,12 +64,13 @@ pub fn main() {
 fn update_modlist() {
     match reqwest::blocking::get(data::URL_MODLIST).and_then(|r| r.text()) {
         Ok(text) => {
-            if let Err(_) = fs::OpenOptions::new()
+            if fs::OpenOptions::new()
                 .create(true)
                 .write(true)
                 .truncate(true)
                 .open(data::PATH_MODLIST)
                 .and_then(|mut f| f.write_all(text.as_bytes()))
+                .is_err()
             {
                 println!("Failed to write updated file to disk");
             }

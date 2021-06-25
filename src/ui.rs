@@ -28,11 +28,7 @@ impl ListIter<(AppData, Mod, bool)> for AppData {
         let self_clone = self.clone();
 
         for (i, item) in self.enabled_mods.iter_mut().enumerate() {
-            let mut data = (
-                self_clone.clone(),
-                self.modlist.mods[i].clone(),
-                item.clone(),
-            );
+            let mut data = (self_clone.clone(), self.modlist.mods[i].clone(), *item);
             cb(&mut data, i);
 
             // Update this mod's enabled status
@@ -71,10 +67,7 @@ pub fn ui_builder() -> impl Widget<AppData> {
             .with_child(Checkbox::new("").lens(ModLens))
             .with_child(
                 Label::new(|(_, m, _): &(AppData, Mod, bool), _: &Env| m.name.clone()).on_click(
-                    |_, (a, m, _), _| {
-                        a.selected_mod = a.modlist.mods.iter().position(|x| x == m);
-                        println!("{:?}", a.selected_mod);
-                    },
+                    |_, (a, m, _), _| a.selected_mod = a.modlist.mods.iter().position(|x| x == m),
                 ),
             )
             .padding(LABEL_SPACING)
@@ -172,17 +165,16 @@ fn apply_enabled_mods(data: &mut AppData) {
                 // Download Patch
                 match m.download() {
                     Err(_) => {
-                        set_response(data, format!("Failed to download {}", m.name));
+                        let response = format!("Failed to download {}", m.name);
+                        set_response(data, response);
                         return;
                     }
                     Ok(patch_bytes) => {
                         let mut patch = Patch::new(patch_bytes);
-                        match patch.apply_to(&mut rom) {
-                            Err(_) => {
-                                set_response(data, format!("Failed to apply {}", m.name));
-                                return;
-                            }
-                            Ok(_) => (),
+                        if patch.apply_to(&mut rom).is_err() {
+                            let response = format!("Failed to apply {}", m.name);
+                            set_response(data, response);
+                            return;
                         }
                     }
                 }
@@ -209,17 +201,17 @@ impl AppDelegate<AppData> for Delegate {
         _env: &Env,
     ) -> Handled {
         if let Some(file_info) = cmd.get(druid::commands::OPEN_FILE) {
-            if let Err(_) = std::fs::create_dir_all("baserom") {
+            if std::fs::create_dir_all("baserom").is_err() {
                 set_response(data, "Failed to make baserom directory");
                 return Handled::Yes;
             }
-            if let Err(_) = std::fs::copy(file_info.path(), data::PATH_ROM) {
+            if std::fs::copy(file_info.path(), data::PATH_ROM).is_err() {
                 set_response(data, "Failed to copy rom");
                 return Handled::Yes;
             }
 
             if let Ok(bytes) = std::fs::read(data::PATH_ROM) {
-                if Rom::verify_hash(&bytes) != true {
+                if !Rom::verify_hash(&bytes) {
                     set_response(data, "The imported file is not correct.");
                     let _ = std::fs::remove_file(PATH_ROM);
                 } else {

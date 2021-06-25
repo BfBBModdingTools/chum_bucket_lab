@@ -84,7 +84,7 @@ impl Rom {
         Ok(Rom { bytes })
     }
 
-    pub fn verify_hash(bytes: &Vec<u8>) -> bool {
+    pub fn verify_hash(bytes: &[u8]) -> bool {
         let mut hasher = Sha1::new();
         hasher.update(&bytes);
         let hash = hasher.finalize();
